@@ -120,7 +120,7 @@ export class NFTService {
         abi: abi as any,
         functionName: 'swapTokenForSpecificNFTs',
         args: [
-          [params.nftIds[0]],
+          [...params.nftIds],
           params.price,
           walletAddress as `0x${string}`,
           false,

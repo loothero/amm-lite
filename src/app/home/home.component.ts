@@ -39,7 +39,6 @@ export class HomeComponent {
   networkLabel(): string {
     switch (this.currentChainId) {
       case CHAIN_ID.YOMINET: return 'Yominet';
-      case CHAIN_ID.ZAAR: return 'Zaar';
       case CHAIN_ID.ETHEREUM: return 'Ethereum';
       default: return 'Unknown';
     }
@@ -53,6 +52,10 @@ export class HomeComponent {
     if (!this.lookupPoolAddress) return;
     const label = this.networkLabel().toLowerCase();
     this.router.navigate(['/pool', label, this.lookupPoolAddress.trim()]);
+  }
+
+  async switchChain(id: number): Promise<void> {
+    await this.walletService.switchChain(id);
   }
 
   get currentChainId(): ChainIdType {

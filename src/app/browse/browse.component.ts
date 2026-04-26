@@ -9,7 +9,8 @@ import { ListingBook } from '../../abi/ListingBook';
 import { Pair721 } from '../../abi/Pair721';
 import { Multicall } from '../../abi/Multicall';
 import { ERC721 } from '../../abi/ERC721';
-import { encodeFunctionData, decodeFunctionResult, formatEther } from 'viem';
+import { encodeFunctionData, decodeFunctionResult } from 'viem';
+import { formatTokenAmount } from '../services/format.util';
 
 // Define a type for the multicall calls
 interface MulticallCall {
@@ -343,37 +344,8 @@ export class BrowseComponent implements OnInit {
     }
   }
 
-  /**
-   * Format a bigint price to a human-readable string with limited decimal places
-   * @param price The price as a bigint
-   * @returns Formatted price string
-   */
   formatPrice(price: bigint): string {
-    try {
-      // Convert the bigint to a string with 18 decimal places (ETH format)
-      const ethPrice = formatEther(price);
-
-      // Parse the string to a number and limit to 6 decimal places
-      const numPrice = parseFloat(ethPrice);
-
-      // Format the number based on its size
-      if (numPrice < 0.000001 && numPrice > 0) {
-        // For very small numbers, use scientific notation
-        return numPrice.toExponential(2);
-      } else if (numPrice < 0.001) {
-        // For small numbers, show more decimal places
-        return numPrice.toFixed(6);
-      } else if (numPrice < 1) {
-        // For medium numbers, show fewer decimal places
-        return numPrice.toFixed(4);
-      } else {
-        // For larger numbers, show even fewer decimal places
-        return numPrice.toFixed(2);
-      }
-    } catch (error) {
-      console.error('Error formatting price:', error);
-      return '0.00';
-    }
+    return formatTokenAmount(price);
   }
 
   /**

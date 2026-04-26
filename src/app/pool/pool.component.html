@@ -1,142 +1,232 @@
-<div class="min-h-screen bg-black flex items-center justify-center px-4 py-8">
-  <div class="max-w-md w-full bg-zinc-900 rounded-xl shadow-lg overflow-hidden md:max-w-2xl p-6 border border-zinc-800">
-    <div class="flex flex-col items-center justify-center space-y-4">
-      <div class="flex justify-between items-center w-full mb-2">
-        <h1 class="text-2xl font-bold text-white">Pool</h1>
-        @if (pairVersion()) {
-          <span class="bg-zinc-700 px-2 py-1 rounded-full text-xs text-white">{{ pairVersion() }}</span>
-        }
-      </div>
+<div class="min-h-screen bg-black px-4 py-8">
+  <div class="max-w-5xl mx-auto">
+    <!-- Address bar -->
+    <div class="mb-6 flex items-center gap-2">
+      <input
+        type="text"
+        [(ngModel)]="inputAddress"
+        (keyup.enter)="submitAddress()"
+        class="flex-1 bg-zinc-900 text-white border border-zinc-800 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:border-[var(--sudo-purple)] placeholder:text-zinc-700"
+        placeholder="paste pool address"
+      >
+      <button
+        (click)="submitAddress()"
+        [disabled]="!inputAddress"
+        class="bg-zinc-800 hover:bg-zinc-700 text-white text-sm px-4 py-2 rounded-md border border-zinc-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+        Load
+      </button>
+    </div>
 
-      @if (!walletService.isConnected()) {
-        <button
-          (click)="connectWallet()"
-          class="w-full bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-lg cursor-pointer">
-          Connect Wallet
-        </button>
-      } @else {
-        <!-- Pool address input -->
-        <div class="w-full bg-zinc-800 rounded-lg p-4 border border-zinc-700">
-          <label class="block text-sm text-zinc-400 mb-1">Pool address</label>
-          <div class="flex gap-2">
-            <input
-              type="text"
-              [(ngModel)]="inputAddress"
-              class="flex-1 bg-zinc-900 text-white border border-zinc-700 rounded-lg p-2 focus:outline-none focus:border-[var(--sudo-purple)] placeholder:[color:var(--dark-sudo-purple)]"
-              placeholder="0x..."
-            >
-            <button
-              (click)="submitAddress()"
-              [disabled]="!inputAddress"
-              class="bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-              Load
-            </button>
+    @if (!walletService.isConnected()) {
+      <div class="text-center text-zinc-500 py-20">
+        Connect a wallet using the header to view pool data.
+      </div>
+    } @else {
+      @if (isLoading()) {
+        <div class="text-center text-zinc-500 py-20 animate-pulse">Loading pool…</div>
+      }
+
+      @if (loadError()) {
+        <div class="p-4 bg-red-950 text-red-300 rounded-md border border-red-900 text-sm">
+          {{ loadError() }}
+        </div>
+      }
+
+      @if (pairAddress() && !isLoading() && !loadError()) {
+        <!-- Header card -->
+        <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-5 mb-4">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <h1 class="text-2xl font-semibold text-white truncate">{{ nftName() || '—' }}</h1>
+                @if (nftSymbol()) {
+                  <span class="text-zinc-500 text-sm">{{ nftSymbol() }}</span>
+                }
+              </div>
+              <div class="text-xs text-zinc-500 font-mono break-all">
+                <span class="text-zinc-600">pair:</span> {{ pairAddress() }}
+              </div>
+              @if (nftContractAddress()) {
+                <div class="text-xs text-zinc-500 font-mono break-all mt-0.5">
+                  <span class="text-zinc-600">nft:</span> {{ nftContractAddress() }}
+                </div>
+              }
+            </div>
+            <div class="flex flex-col items-end gap-1 shrink-0">
+              @if (pairVersion()) {
+                <span class="text-[10px] uppercase tracking-widest text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5">{{ pairVersion() }}</span>
+              }
+              @if (poolType() !== null) {
+                <span class="text-xs text-zinc-400">{{ poolTypeLabel() }}</span>
+              }
+            </div>
+          </div>
+
+          <!-- Stats strip -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-px bg-zinc-800 mt-4 rounded-md overflow-hidden">
+            <div class="bg-zinc-950 px-3 py-3">
+              <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Floor (buy)</div>
+              <div class="text-base font-mono text-white">{{ formatTokenAmount(buyPrice()) }} <span class="text-zinc-500 text-xs">{{ quoteSymbol() }}</span></div>
+            </div>
+            <div class="bg-zinc-950 px-3 py-3">
+              <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Top bid (sell)</div>
+              <div class="text-base font-mono text-white">{{ formatTokenAmount(sellPrice()) }} <span class="text-zinc-500 text-xs">{{ quoteSymbol() }}</span></div>
+            </div>
+            <div class="bg-zinc-950 px-3 py-3">
+              <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">NFTs in pool</div>
+              <div class="text-base font-mono text-white">
+                @if (inventoryIds().length > 0) {
+                  {{ inventoryIds().length }}
+                } @else if (nftBalanceInPool() !== null) {
+                  {{ nftBalanceInPool() }}
+                } @else { — }
+              </div>
+            </div>
+            <div class="bg-zinc-950 px-3 py-3">
+              <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{{ quoteSymbol() }} in pool</div>
+              <div class="text-base font-mono text-white">{{ formatTokenAmount(tokenBalanceInPool()) }}</div>
+            </div>
           </div>
         </div>
 
-        @if (isLoading()) {
-          <div class="w-full p-3 bg-blue-900/50 text-blue-200 rounded-lg border border-blue-700">
-            Loading pool…
-          </div>
-        }
-
-        @if (loadError()) {
-          <div class="w-full p-3 bg-red-900/50 text-red-200 rounded-lg border border-red-700 break-words">
-            {{ loadError() }}
-          </div>
-        }
-
-        @if (pairAddress() && !isLoading() && !loadError()) {
-          <!-- Pool info -->
-          <div class="w-full bg-zinc-800 rounded-lg p-4 border border-zinc-700 text-sm">
-            <div class="flex justify-between items-center mb-2">
-              <div>
-                <h2 class="text-lg font-bold text-white">{{ nftName() || '—' }}</h2>
-                <p class="text-zinc-400">{{ nftSymbol() }}</p>
-              </div>
-              <div class="text-right">
-                <p class="text-zinc-400">{{ poolTypeLabel() }}</p>
-              </div>
-            </div>
-            <div class="text-zinc-400 break-all"><span class="text-zinc-500">NFT:</span> {{ nftContractAddress() }}</div>
-            <div class="text-zinc-400 break-all mt-1"><span class="text-zinc-500">Owner:</span> {{ ownerAddress() }}</div>
-          </div>
-
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <!-- Inventory -->
-          <div class="w-full bg-zinc-800 rounded-lg p-4 border border-zinc-700">
-            <h3 class="text-md font-semibold text-white mb-2">Inventory ({{ inventoryIds().length }})</h3>
-            <p class="text-sm text-zinc-300 break-words">{{ shortInventory() }}</p>
-          </div>
-
-          <!-- Buy -->
-          <div class="w-full bg-zinc-800 rounded-lg p-4 border border-zinc-700">
-            <h3 class="text-md font-semibold text-white mb-2">Buy</h3>
-            @if (buyError()) {
-              <p class="text-sm text-zinc-400">{{ buyError() }}</p>
-            } @else if (buyPrice() !== null) {
-              <div class="flex justify-between items-center mb-2 text-sm">
-                <span class="text-zinc-400">Quote</span>
-                <span class="text-white font-bold">{{ formatPrice(buyPrice()) }} {{ nativeSymbol() }}</span>
-              </div>
-              @if (inventoryIds().length > 0) {
-                <label class="block text-sm text-zinc-400 mb-1 mt-2">Select NFT to buy</label>
-                <select
-                  [ngModel]="selectedBuyId()"
-                  (ngModelChange)="selectedBuyId.set($event)"
-                  class="w-full bg-zinc-900 text-white border border-zinc-700 rounded-lg p-2 focus:outline-none focus:border-[var(--sudo-purple)]">
-                  @for (id of inventoryIds(); track id) {
-                    <option [ngValue]="id">{{ id.toString() }}</option>
-                  }
-                </select>
+          <div class="lg:col-span-3 bg-zinc-950 border border-zinc-800 rounded-lg p-5">
+            <div class="flex items-baseline justify-between mb-3">
+              <h2 class="text-[10px] uppercase tracking-widest text-zinc-500">Inventory</h2>
+              @if (selectedBuyIds().length > 0) {
+                <button (click)="clearBuySelection()" class="text-[10px] uppercase tracking-widest text-zinc-500 hover:text-zinc-300 cursor-pointer">
+                  clear ({{ selectedBuyIds().length }})
+                </button>
               }
-              <button
-                (click)="buy()"
-                [disabled]="isBuying() || selectedBuyId() === null || buyPrice() === null"
-                class="w-full mt-3 bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {{ isBuying() ? 'Buying…' : 'Buy' }}
-              </button>
-            }
-          </div>
+            </div>
 
-          <!-- Sell -->
-          <div class="w-full bg-zinc-800 rounded-lg p-4 border border-zinc-700">
-            <h3 class="text-md font-semibold text-white mb-2">Sell</h3>
-            @if (sellQuoteError()) {
-              <p class="text-sm text-zinc-400">{{ sellQuoteError() }}</p>
-            } @else if (sellPrice() !== null) {
-              <div class="flex justify-between items-center mb-2 text-sm">
-                <span class="text-zinc-400">You receive</span>
-                <span class="text-white font-bold">{{ formatPrice(sellPrice()) }} {{ nativeSymbol() }}</span>
+            @if (inventoryError()) {
+              <p class="text-sm text-zinc-500 mb-3">{{ inventoryError() }}</p>
+            } @else if (inventoryIds().length === 0) {
+              <p class="text-sm text-zinc-500">Pool is empty.</p>
+            } @else {
+              <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                @for (id of inventoryIds(); track id) {
+                  <button
+                    (click)="toggleBuyId(id)"
+                    [class.border-\[var\(--sudo-purple\)\]]="isBuyIdSelected(id)"
+                    [class.bg-zinc-900]="isBuyIdSelected(id)"
+                    class="aspect-square border border-zinc-800 hover:border-zinc-600 rounded-md flex items-center justify-center text-xs font-mono text-zinc-300 cursor-pointer transition">
+                    #{{ id.toString() }}
+                  </button>
+                }
               </div>
-              <label class="block text-sm text-zinc-400 mb-1 mt-2">Token ID to sell</label>
-              <input
-                type="text"
-                [(ngModel)]="sellTokenId"
-                class="w-full bg-zinc-900 text-white border border-zinc-700 rounded-lg p-2 focus:outline-none focus:border-[var(--sudo-purple)] placeholder:[color:var(--dark-sudo-purple)]"
-                placeholder="e.g. 123"
-              >
-              <p class="text-xs text-zinc-500 mt-1">Approval for this pool will be requested if not yet granted.</p>
-              <button
-                (click)="sell()"
-                [disabled]="isSelling() || !sellTokenId || sellPrice() === null"
-                class="w-full mt-3 bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {{ isSelling() ? 'Selling…' : 'Sell' }}
-              </button>
             }
+
+            <!-- Custom IDs (always visible — useful for non-enumerable pools) -->
+            <div class="mt-4 pt-4 border-t border-zinc-800">
+              <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Add IDs by hand</label>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  [(ngModel)]="customBuyIdsInput"
+                  (keyup.enter)="applyCustomBuyIds()"
+                  class="flex-1 bg-zinc-900 text-white border border-zinc-800 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:border-[var(--sudo-purple)] placeholder:text-zinc-700"
+                  placeholder="e.g. 12, 47, 88"
+                >
+                <button
+                  (click)="applyCustomBuyIds()"
+                  class="bg-zinc-800 hover:bg-zinc-700 text-white text-sm px-3 py-2 rounded-md border border-zinc-700 cursor-pointer">
+                  Apply
+                </button>
+              </div>
+              @if (customBuyIds().length > 0) {
+                <div class="text-[10px] text-zinc-500 mt-2">{{ customBuyIds().length }} custom ID(s) added.</div>
+              }
+            </div>
           </div>
 
-          @if (txError()) {
-            <div class="w-full p-3 bg-red-900/50 text-red-200 rounded-lg border border-red-700 break-words text-sm">
-              {{ txError() }}
+          <!-- Buy / Sell action panel -->
+          <div class="lg:col-span-2 space-y-4">
+            <!-- Buy -->
+            <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-5">
+              <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Buy</div>
+              @if (buyPrice() !== null) {
+                <div class="flex items-baseline justify-between mb-1">
+                  <span class="text-zinc-500 text-xs">Total</span>
+                  <span class="text-2xl font-mono text-white">
+                    {{ formatTokenAmount(buyPrice()) }}
+                    <span class="text-zinc-500 text-xs">{{ quoteSymbol() }}</span>
+                  </span>
+                </div>
+                <div class="flex items-baseline justify-between text-xs text-zinc-500 mb-4">
+                  <span>{{ effectiveBuyIds().length || 1 }} item(s)</span>
+                  @if (effectiveBuyIds().length === 0) {
+                    <span>showing single-item floor</span>
+                  }
+                </div>
+                <button
+                  (click)="buy()"
+                  [disabled]="isBuying() || effectiveBuyIds().length === 0 || buyPrice() === null"
+                  class="w-full bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-medium py-2.5 rounded-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition">
+                  {{ isBuying() ? 'Buying…' : (effectiveBuyIds().length === 0 ? 'Select IDs to buy' : 'Buy') }}
+                </button>
+              } @else {
+                <p class="text-sm text-zinc-500">{{ buyError() || 'No buy quote.' }}</p>
+              }
             </div>
-          }
-          @if (txSuccessHash()) {
-            <div class="w-full p-3 bg-green-900/50 text-green-200 rounded-lg border border-green-700 break-all text-sm">
-              Tx: {{ txSuccessHash() }}
+
+            <!-- Sell -->
+            <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-5">
+              <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-3">Sell</div>
+              @if (sellPrice() !== null) {
+                <div class="flex items-baseline justify-between mb-1">
+                  <span class="text-zinc-500 text-xs">You receive</span>
+                  <span class="text-2xl font-mono text-white">
+                    {{ formatTokenAmount(sellPrice()) }}
+                    <span class="text-zinc-500 text-xs">{{ quoteSymbol() }}</span>
+                  </span>
+                </div>
+                <div class="flex items-baseline justify-between text-xs text-zinc-500 mb-3">
+                  <span>{{ sellIds().length || 1 }} item(s)</span>
+                </div>
+                <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Token IDs</label>
+                <input
+                  type="text"
+                  [(ngModel)]="sellTokenIdsInput"
+                  (ngModelChange)="onSellIdsInputChange()"
+                  class="w-full bg-zinc-900 text-white border border-zinc-800 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:border-[var(--sudo-purple)] placeholder:text-zinc-700"
+                  placeholder="e.g. 12, 47, 88"
+                >
+                <p class="text-[10px] text-zinc-600 mt-1.5">setApprovalForAll will be requested if not yet granted.</p>
+                <button
+                  (click)="sell()"
+                  [disabled]="isSelling() || sellIds().length === 0 || sellPrice() === null || !nftContractAddress()"
+                  class="w-full mt-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium py-2.5 rounded-md border border-zinc-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition">
+                  {{ isSelling() ? 'Selling…' : 'Sell' }}
+                </button>
+              } @else {
+                <p class="text-sm text-zinc-500">{{ sellQuoteError() || 'No sell quote.' }}</p>
+              }
             </div>
-          }
-        }
+
+            <!-- Owner -->
+            @if (ownerAddress()) {
+              <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+                <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Owner</div>
+                <div class="text-xs font-mono text-zinc-400 break-all">{{ ownerAddress() }}</div>
+              </div>
+            }
+
+            @if (txError()) {
+              <div class="p-3 bg-red-950 text-red-300 border border-red-900 rounded-md text-xs break-words">
+                {{ txError() }}
+              </div>
+            }
+            @if (txSuccessHash()) {
+              <div class="p-3 bg-green-950 text-green-300 border border-green-900 rounded-md text-xs break-all font-mono">
+                tx: {{ txSuccessHash() }}
+              </div>
+            }
+          </div>
+        </div>
       }
-    </div>
+    }
   </div>
 </div>

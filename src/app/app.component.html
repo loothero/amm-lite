@@ -1,1 +1,44 @@
+<header class="sticky top-0 z-30 bg-black/80 backdrop-blur border-b border-zinc-900">
+  <div class="max-w-5xl mx-auto px-4 h-12 flex items-center gap-4">
+    <a routerLink="/" class="text-white font-semibold tracking-tight text-sm">
+      sudo<span class="text-[var(--sudo-purple)]">·</span>lite
+    </a>
+
+    @if (walletService.isConnected()) {
+      <nav class="hidden sm:flex items-center gap-1">
+        @for (c of walletService.supportedChains; track c.id) {
+          <button
+            (click)="switchChain(c.id)"
+            [class.bg-zinc-800]="walletService.currentChainIdNum() === c.id"
+            [class.text-white]="walletService.currentChainIdNum() === c.id"
+            [class.text-zinc-500]="walletService.currentChainIdNum() !== c.id"
+            class="px-2.5 py-1 rounded-md text-xs hover:text-zinc-200 hover:bg-zinc-900 transition cursor-pointer">
+            {{ c.label }}
+          </button>
+        }
+      </nav>
+    }
+
+    <div class="ml-auto flex items-center gap-2">
+      @if (!walletService.isConnected()) {
+        <button
+          (click)="connect()"
+          class="bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white text-sm px-3.5 py-1.5 rounded-md cursor-pointer">
+          Connect Wallet
+        </button>
+      } @else {
+        <span class="text-xs font-mono text-zinc-400 hidden md:inline">
+          {{ shortBalance() }} {{ nativeSymbol() }}
+        </span>
+        <button
+          (click)="disconnect()"
+          class="text-xs font-mono text-zinc-200 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1.5 rounded-md cursor-pointer"
+          title="Click to disconnect">
+          {{ shortAddress(walletService.walletAddress()) }}
+        </button>
+      }
+    </div>
+  </div>
+</header>
+
 <router-outlet></router-outlet>

@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { WalletService } from '../services/wallet.service';
-import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES } from '../services/address';
+import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER } from '../services/address';
 import { ERC721 } from '../../abi/ERC721';
 
 @Component({
@@ -25,20 +25,10 @@ export class KamiComponent implements OnInit {
   errorMessage = signal<string>('');
   isWrongNetwork = signal<boolean>(false);
 
-  // Get the current chain ID from the wallet service
   get currentChainId(): ChainIdType {
     const chain = this.walletService.getCurrentChain();
-    if (!chain) return CHAIN_ID.YOMINET; // Default to YOMINET if no chain is available
-
-    // Map the chain ID to our CHAIN_ID constants
-    switch (chain.id) {
-      case parseInt('0x18623A6A54F3F', 16): // Yominet chain ID
-        return CHAIN_ID.YOMINET;
-      case parseInt('0x4be439dcd8b3f', 16): // Zaar chain ID
-        return CHAIN_ID.ZAAR;
-      default:
-        return CHAIN_ID.YOMINET; // Default to YOMINET for unknown chains
-    }
+    if (!chain) return CHAIN_ID.YOMINET;
+    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.YOMINET;
   }
 
   ngOnInit(): void {

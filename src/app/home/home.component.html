@@ -12,7 +12,19 @@
           <p class="text-sm text-zinc-400">Connected Wallet</p>
           <p class="text-zinc-200 font-mono break-all">{{ walletService.walletAddress() }}</p>
           <p class="text-sm text-zinc-400 mt-3">Network</p>
-          <p class="text-zinc-200 font-bold">{{ networkLabel() }}</p>
+          <div class="flex flex-wrap gap-2 mt-1">
+            @for (c of walletService.supportedChains; track c.id) {
+              <button
+                (click)="switchChain(c.id)"
+                [class.bg-\[var\(--dark-sudo-purple\)\]]="walletService.currentChainIdNum() === c.id"
+                [class.text-white]="walletService.currentChainIdNum() === c.id"
+                [class.bg-zinc-900]="walletService.currentChainIdNum() !== c.id"
+                [class.text-zinc-300]="walletService.currentChainIdNum() !== c.id"
+                class="px-3 py-1 rounded-md text-xs border border-zinc-700 hover:border-[var(--sudo-purple)] transition cursor-pointer">
+                {{ c.label }}
+              </button>
+            }
+          </div>
           <p class="text-sm text-zinc-400 mt-3">Balance</p>
           <p class="text-zinc-200 font-bold">{{ walletService.balance() }} {{ nativeSymbol() }}</p>
         </div>
