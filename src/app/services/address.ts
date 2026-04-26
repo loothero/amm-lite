@@ -1,7 +1,8 @@
 // Define the chain ID type
 export const CHAIN_ID = {
   YOMINET: 'YOMINET',
-  ZAAR: 'ZAAR'
+  ZAAR: 'ZAAR',
+  ETHEREUM: 'ETHEREUM'
 } as const;
 
 // Create a type from the values of CHAIN_ID
@@ -9,14 +10,16 @@ export type ChainIdType = typeof CHAIN_ID[keyof typeof CHAIN_ID];
 
 // Define the contract addresses interface
 interface ContractAddressesType {
-  PAIR_FACTORY_V2_HOOKS: string;
-  LINEAR_CURVE_V2: string;
-  EXPONENTIAL_CURVE_V2: string;
-  XYK_CURVE_V2: string;
-  GDA_CURVE_V2: string;
-  VERY_FAST_ROUTER_V2: string;
-  MULTICALL: string;
-  LISTING_BOOK: string;
+  PAIR_FACTORY_V2_HOOKS?: string;
+  PAIR_FACTORY_V2?: string;
+  PAIR_FACTORY?: string;
+  LINEAR_CURVE_V2?: string;
+  EXPONENTIAL_CURVE_V2?: string;
+  XYK_CURVE_V2?: string;
+  GDA_CURVE_V2?: string;
+  VERY_FAST_ROUTER_V2?: string;
+  MULTICALL?: string;
+  LISTING_BOOK?: string;
   KAMI?: string;
 }
 
@@ -45,5 +48,26 @@ export const CONTRACT_ADDRESSES: ContractAddressesRecord = {
     VERY_FAST_ROUTER_V2: '0x66f739c9Dd6c691fF577542513C31F04419F451A',
     MULTICALL: '0x53f0E31E2B8084ce4dD5991EcF157B181fc38bC1',
     LISTING_BOOK: '0x38BA53D83dE7234A04E6F0ec5Fb779681e3940cf'
+  },
+  [CHAIN_ID.ETHEREUM]: {
+    // Used to detect pair variant when looking up a pool by address.
+    PAIR_FACTORY_V2: '0xA020d57aB0448Ef74115c112D18a9C231CC86000',
+    PAIR_FACTORY: '0xb16c1342E617A5B6E4b631EB114483FDB289c0A4'
   }
+};
+
+// Numeric chain ID -> CHAIN_ID label.
+export const CHAIN_ID_BY_NUMBER: Record<number, ChainIdType> = {
+  [parseInt('0x18623A6A54F3F', 16)]: CHAIN_ID.YOMINET,
+  [parseInt('0x4be439dcd8b3f', 16)]: CHAIN_ID.ZAAR,
+  1: CHAIN_ID.ETHEREUM,
+};
+
+// URL slug (lowercased label segment) -> CHAIN_ID.
+export const CHAIN_ID_BY_LABEL: Record<string, ChainIdType> = {
+  yominet: CHAIN_ID.YOMINET,
+  zaar: CHAIN_ID.ZAAR,
+  ethereum: CHAIN_ID.ETHEREUM,
+  eth: CHAIN_ID.ETHEREUM,
+  mainnet: CHAIN_ID.ETHEREUM,
 };

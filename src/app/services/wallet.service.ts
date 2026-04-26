@@ -30,6 +30,12 @@ export class WalletService {
           token: 'Init',
           label: 'Zaar',
           rpcUrl: 'https://jsonrpc-zaar-mainnet-1.anvil.asia-southeast.initia.xyz/'
+        },
+        {
+          id: '0x1',
+          token: 'ETH',
+          label: 'Ethereum',
+          rpcUrl: 'https://eth.llamarpc.com'
         }
       ],
       accountCenter: {

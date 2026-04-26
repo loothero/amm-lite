@@ -1,10 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { WalletService } from '../services/wallet.service';
 import { ERC721 } from '../../abi/ERC721';
 import { ERC20 } from '../../abi/ERC20';
-import { CHAIN_ID, CONTRACT_ADDRESSES, ChainIdType } from '../services/address';
+import { CHAIN_ID, CONTRACT_ADDRESSES, ChainIdType, CHAIN_ID_BY_NUMBER } from '../services/address';
 import { FactoryABI } from '../../abi/Factory';
 import { Multicall } from '../../abi/Multicall';
 import { formatUnits, encodeFunctionData, decodeFunctionResult } from 'viem';
@@ -24,6 +25,7 @@ type MulticallCall = {
 })
 export class HomeComponent {
   walletService = inject(WalletService);
+  private router = inject(Router);
 
   // Form properties
   nftContractAddress: string = '';
@@ -31,20 +33,32 @@ export class HomeComponent {
   tokenContractAddress: string = ''; // Default to empty for native token
   startingPrice: string = '';
 
-  // Current chain ID
+  // Pool lookup form
+  lookupPoolAddress: string = '';
+
+  networkLabel(): string {
+    switch (this.currentChainId) {
+      case CHAIN_ID.YOMINET: return 'Yominet';
+      case CHAIN_ID.ZAAR: return 'Zaar';
+      case CHAIN_ID.ETHEREUM: return 'Ethereum';
+      default: return 'Unknown';
+    }
+  }
+
+  nativeSymbol(): string {
+    return this.walletService.getCurrentChain()?.nativeCurrency.symbol ?? 'ETH';
+  }
+
+  goToPool(): void {
+    if (!this.lookupPoolAddress) return;
+    const label = this.networkLabel().toLowerCase();
+    this.router.navigate(['/pool', label, this.lookupPoolAddress.trim()]);
+  }
+
   get currentChainId(): ChainIdType {
     const chain = this.walletService.getCurrentChain();
-    if (!chain) return CHAIN_ID.YOMINET; // Default to YOMINET if no chain is available
-
-    // Map the chain ID to our CHAIN_ID constants
-    switch (chain.id) {
-      case parseInt('0x18623A6A54F3F', 16): // Yominet chain ID
-        return CHAIN_ID.YOMINET;
-      case parseInt('0x4be439dcd8b3f', 16): // Zaar chain ID
-        return CHAIN_ID.ZAAR;
-      default:
-        return CHAIN_ID.YOMINET; // Default to YOMINET for unknown chains
-    }
+    if (!chain) return CHAIN_ID.YOMINET;
+    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.YOMINET;
   }
 
   // UI state

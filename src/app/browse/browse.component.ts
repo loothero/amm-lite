@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { WalletService } from '../services/wallet.service';
 import { NFTService, TransactionStatus } from '../services/nft.service';
-import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES } from '../services/address';
+import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL } from '../services/address';
 import { ListingBook } from '../../abi/ListingBook';
 import { Pair721 } from '../../abi/Pair721';
 import { Multicall } from '../../abi/Multicall';
@@ -55,17 +55,8 @@ export class BrowseComponent implements OnInit {
   // Get the current chain ID from the wallet service
   get currentChainId(): ChainIdType {
     const chain = this.walletService.getCurrentChain();
-    if (!chain) return CHAIN_ID.YOMINET; // Default to YOMINET if no chain is available
-
-    // Map the chain ID to our CHAIN_ID constants
-    switch (chain.id) {
-      case parseInt('0x18623A6A54F3F', 16): // Yominet chain ID
-        return CHAIN_ID.YOMINET;
-      case parseInt('0x4be439dcd8b3f', 16): // Zaar chain ID
-        return CHAIN_ID.ZAAR;
-      default:
-        return CHAIN_ID.YOMINET; // Default to YOMINET for unknown chains
-    }
+    if (!chain) return CHAIN_ID.YOMINET;
+    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.YOMINET;
   }
 
   ngOnInit(): void {
@@ -91,19 +82,11 @@ export class BrowseComponent implements OnInit {
     }
   }
 
-  /**
-   * Set the chain ID based on the label
-   */
   private setChainIdFromLabel(label: string): void {
-    // Convert label to lowercase for case-insensitive comparison
-    const labelLower = label.toLowerCase();
-
-    if (labelLower === 'yominet') {
-      this.chainId = CHAIN_ID.YOMINET;
-    } else if (labelLower === 'zaar') {
-      this.chainId = CHAIN_ID.ZAAR;
+    const mapped = CHAIN_ID_BY_LABEL[label.toLowerCase()];
+    if (mapped) {
+      this.chainId = mapped;
     } else {
-      // Default to YOMINET if label is not recognized
       this.chainId = CHAIN_ID.YOMINET;
       console.warn(`Unrecognized chain label: ${label}, defaulting to YOMINET`);
     }

@@ -12,12 +12,33 @@
           <p class="text-sm text-zinc-400">Connected Wallet</p>
           <p class="text-zinc-200 font-mono break-all">{{ walletService.walletAddress() }}</p>
           <p class="text-sm text-zinc-400 mt-3">Network</p>
-          <p class="text-zinc-200 font-bold">{{ currentChainId === 'YOMINET' ? 'Yominet' : 'Zaar' }}</p>
+          <p class="text-zinc-200 font-bold">{{ networkLabel() }}</p>
           <p class="text-sm text-zinc-400 mt-3">Balance</p>
-          <p class="text-zinc-200 font-bold">{{ walletService.balance() }} {{ currentChainId === 'YOMINET' ? 'ETH' : 'Init' }}</p>
+          <p class="text-zinc-200 font-bold">{{ walletService.balance() }} {{ nativeSymbol() }}</p>
         </div>
 
-        <!-- NFT Listing Form -->
+        <!-- Pool lookup -->
+        <div class="w-full bg-zinc-800 rounded-lg p-4 mb-4 border border-zinc-700">
+          <h2 class="text-lg text-white font-bold mb-2">Look Up a Pool</h2>
+          <p class="text-sm text-zinc-400 mb-3">Paste a sudoswap pair address to view inventory and trade.</p>
+          <div class="flex gap-2">
+            <input
+              type="text"
+              [(ngModel)]="lookupPoolAddress"
+              class="flex-1 bg-zinc-900 text-white border border-zinc-700 rounded-lg p-2 focus:outline-none focus:border-[var(--sudo-purple)] placeholder:[color:var(--dark-sudo-purple)]"
+              placeholder="0x..."
+            >
+            <button
+              (click)="goToPool()"
+              [disabled]="!lookupPoolAddress"
+              class="bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              View
+            </button>
+          </div>
+        </div>
+
+        <!-- NFT Listing Form (pool creation is not supported on Ethereum mainnet here) -->
+        @if (currentChainId !== 'ETHEREUM') {
         <div class="w-full bg-zinc-800 rounded-lg p-4 mb-4 border border-zinc-700">
           <h2 class="text-lg text-white font-bold mb-4">Create NFT Listing</h2>
 
@@ -140,6 +161,7 @@
             Create Listing
           </button>
         </div>
+        }
       }
     </div>
   </div>
