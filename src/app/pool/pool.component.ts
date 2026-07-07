@@ -9,6 +9,8 @@ import {
   ChainIdType,
   CHAIN_ID_BY_LABEL,
   CHAIN_ID_BY_NUMBER,
+  ZERO_ADDRESS,
+  isAddressEqual,
 } from '../services/address';
 import { Pair } from '../../abi/Pair';
 import { Pair721 } from '../../abi/Pair721';
@@ -16,8 +18,6 @@ import { ERC721 } from '../../abi/ERC721';
 import { ERC20 } from '../../abi/ERC20';
 import { PublicClient } from 'viem';
 import { formatTokenAmount, shortAddress } from '../services/format.util';
-
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 @Component({
   selector: 'app-pool',
@@ -297,7 +297,7 @@ export class PoolComponent implements OnInit {
       const tok = await publicClient.readContract({
         address: pair, abi, functionName: 'token', args: [],
       } as any) as string;
-      if (tok && tok.toLowerCase() !== ZERO_ADDRESS) this.tokenAddress.set(tok);
+      if (tok && !isAddressEqual(tok, ZERO_ADDRESS)) this.tokenAddress.set(tok);
     } catch {
       // ETH pair — leave tokenAddress empty.
     }

@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { WalletService } from '../services/wallet.service';
 import { NFTService, TransactionStatus } from '../services/nft.service';
-import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL } from '../services/address';
+import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL, isAddressEqual } from '../services/address';
 import { Pair721 } from '../../abi/Pair721';
 import { Multicall } from '../../abi/Multicall';
 import { ERC721 } from '../../abi/ERC721';
@@ -252,7 +252,7 @@ export class ManageComponent implements OnInit {
 
       // Check if the current wallet address is the pool owner
       const walletAddress = this.walletService.walletAddress()!;
-      const isOwner = walletAddress.toLowerCase() === ownerAddress.toLowerCase();
+      const isOwner = isAddressEqual(walletAddress, ownerAddress);
 
       // Update the signals
       this.nftIds.set(ids);

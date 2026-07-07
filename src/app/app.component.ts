@@ -36,7 +36,9 @@ export class AppComponent {
     await this.walletService.disconnectWallet();
   }
 
-  async switchChain(id: number): Promise<void> {
+  // Chain ids are Starknet felt hex strings (not EVM numbers) since the
+  // Starknet port.
+  async switchChain(id: string): Promise<void> {
     await this.walletService.switchChain(id);
   }
 }

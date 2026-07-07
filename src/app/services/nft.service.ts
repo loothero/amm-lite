@@ -5,7 +5,7 @@ import { Pair721 } from '../../abi/Pair721';
 import { Pair } from '../../abi/Pair';
 import { ERC721 } from '../../abi/ERC721';
 import { PublicClient, WalletClient, Hash } from 'viem';
-import { CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER } from './address';
+import { CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, isAddressEqual } from './address';
 
 export type PairVersion = 'v1' | 'v2';
 
@@ -90,10 +90,9 @@ export class NFTService {
       return 'v2';
     }
 
-    const norm = factoryAddr.toLowerCase();
-    if (addrs.PAIR_FACTORY && norm === addrs.PAIR_FACTORY.toLowerCase()) return 'v1';
-    if (addrs.PAIR_FACTORY_V2 && norm === addrs.PAIR_FACTORY_V2.toLowerCase()) return 'v2';
-    if (addrs.PAIR_FACTORY_V2_HOOKS && norm === addrs.PAIR_FACTORY_V2_HOOKS.toLowerCase()) return 'v2';
+    if (addrs.PAIR_FACTORY && isAddressEqual(factoryAddr, addrs.PAIR_FACTORY)) return 'v1';
+    if (addrs.PAIR_FACTORY_V2 && isAddressEqual(factoryAddr, addrs.PAIR_FACTORY_V2)) return 'v2';
+    if (addrs.PAIR_FACTORY_V2_HOOKS && isAddressEqual(factoryAddr, addrs.PAIR_FACTORY_V2_HOOKS)) return 'v2';
     return 'v2';
   }
 

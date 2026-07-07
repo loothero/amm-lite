@@ -54,7 +54,9 @@ export class HomeComponent {
     this.router.navigate(['/pool', label, this.lookupPoolAddress.trim()]);
   }
 
-  async switchChain(id: number): Promise<void> {
+  // Chain ids are Starknet felt hex strings (not EVM numbers) since the
+  // Starknet port.
+  async switchChain(id: string): Promise<void> {
     await this.walletService.switchChain(id);
   }
 
