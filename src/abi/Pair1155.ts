@@ -1,9 +1,9 @@
-// Sierra ABI extracted from lssvm2-starknet `target/dev/lssvm_pair_LSSVMPairERC721.contract_class.json`.
+// Sierra ABI extracted from lssvm2-starknet `target/dev/lssvm_pair_LSSVMPairERC1155.contract_class.json`.
 // Regenerate with the lssvm2-starknet port tooling whenever the Cairo contracts change.
 // Do not edit by hand.
 import type { Abi } from 'starknet';
 
-export const Pair721: Abi = [
+export const Pair1155: Abi = [
   {
     "type": "impl",
     "name": "PairVariantImpl",
@@ -145,136 +145,20 @@ export const Pair721: Abi = [
   },
   {
     "type": "impl",
-    "name": "PairERC721Impl",
-    "interface_name": "lssvm_interfaces::pair::ILSSVMPairERC721"
-  },
-  {
-    "type": "struct",
-    "name": "core::array::Span::<core::felt252>",
-    "members": [
-      {
-        "name": "snapshot",
-        "type": "@core::array::Array::<core::felt252>"
-      }
-    ]
+    "name": "PairERC1155Impl",
+    "interface_name": "lssvm_interfaces::pair::ILSSVMPairERC1155"
   },
   {
     "type": "interface",
-    "name": "lssvm_interfaces::pair::ILSSVMPairERC721",
+    "name": "lssvm_interfaces::pair::ILSSVMPairERC1155",
     "items": [
       {
         "type": "function",
-        "name": "swap_nfts_for_token_with_property_check",
-        "inputs": [
-          {
-            "name": "nft_ids",
-            "type": "core::array::Array::<core::integer::u256>"
-          },
-          {
-            "name": "min_expected_token_output",
-            "type": "core::integer::u256"
-          },
-          {
-            "name": "token_recipient",
-            "type": "core::starknet::contract_address::ContractAddress"
-          },
-          {
-            "name": "is_router",
-            "type": "core::bool"
-          },
-          {
-            "name": "router_caller",
-            "type": "core::starknet::contract_address::ContractAddress"
-          },
-          {
-            "name": "property_checker_params",
-            "type": "core::array::Span::<core::felt252>"
-          }
-        ],
-        "outputs": [
-          {
-            "type": "core::integer::u256"
-          }
-        ],
-        "state_mutability": "external"
-      },
-      {
-        "type": "function",
-        "name": "property_checker",
-        "inputs": [],
-        "outputs": [
-          {
-            "type": "core::starknet::contract_address::ContractAddress"
-          }
-        ],
-        "state_mutability": "view"
-      },
-      {
-        "type": "function",
-        "name": "sync_nft_ids",
-        "inputs": [
-          {
-            "name": "ids",
-            "type": "core::array::Array::<core::integer::u256>"
-          }
-        ],
-        "outputs": [],
-        "state_mutability": "external"
-      },
-      {
-        "type": "function",
-        "name": "num_ids_held",
+        "name": "nft_id",
         "inputs": [],
         "outputs": [
           {
             "type": "core::integer::u256"
-          }
-        ],
-        "state_mutability": "view"
-      },
-      {
-        "type": "function",
-        "name": "has_id",
-        "inputs": [
-          {
-            "name": "id",
-            "type": "core::integer::u256"
-          }
-        ],
-        "outputs": [
-          {
-            "type": "core::bool"
-          }
-        ],
-        "state_mutability": "view"
-      },
-      {
-        "type": "function",
-        "name": "get_all_ids",
-        "inputs": [],
-        "outputs": [
-          {
-            "type": "core::array::Array::<core::integer::u256>"
-          }
-        ],
-        "state_mutability": "view"
-      },
-      {
-        "type": "function",
-        "name": "get_ids",
-        "inputs": [
-          {
-            "name": "start",
-            "type": "core::integer::u256"
-          },
-          {
-            "name": "end",
-            "type": "core::integer::u256"
-          }
-        ],
-        "outputs": [
-          {
-            "type": "core::array::Array::<core::integer::u256>"
           }
         ],
         "state_mutability": "view"
@@ -361,6 +245,16 @@ export const Pair721: Abi = [
       {
         "name": "TRADE",
         "type": "()"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "core::array::Span::<core::felt252>",
+    "members": [
+      {
+        "name": "snapshot",
+        "type": "@core::array::Array::<core::felt252>"
       }
     ]
   },
@@ -893,8 +787,8 @@ export const Pair721: Abi = [
         "type": "lssvm_interfaces::types::PoolType"
       },
       {
-        "name": "property_checker",
-        "type": "core::starknet::contract_address::ContractAddress"
+        "name": "nft_id",
+        "type": "core::integer::u256"
       },
       {
         "name": "token",
@@ -1036,7 +930,7 @@ export const Pair721: Abi = [
   },
   {
     "type": "event",
-    "name": "lssvm_interfaces::pair::events::erc721::SwapNFTInPair",
+    "name": "lssvm_interfaces::pair::events::erc1155::SwapNFTInPair",
     "kind": "struct",
     "members": [
       {
@@ -1045,15 +939,15 @@ export const Pair721: Abi = [
         "kind": "data"
       },
       {
-        "name": "ids",
-        "type": "core::array::Array::<core::integer::u256>",
+        "name": "num_nfts",
+        "type": "core::integer::u256",
         "kind": "data"
       }
     ]
   },
   {
     "type": "event",
-    "name": "lssvm_interfaces::pair::events::erc721::SwapNFTOutPair",
+    "name": "lssvm_interfaces::pair::events::erc1155::SwapNFTOutPair",
     "kind": "struct",
     "members": [
       {
@@ -1062,27 +956,27 @@ export const Pair721: Abi = [
         "kind": "data"
       },
       {
-        "name": "ids",
-        "type": "core::array::Array::<core::integer::u256>",
+        "name": "num_nfts",
+        "type": "core::integer::u256",
         "kind": "data"
       }
     ]
   },
   {
     "type": "event",
-    "name": "lssvm_interfaces::pair::events::erc721::NFTWithdrawal",
+    "name": "lssvm_interfaces::pair::events::erc1155::NFTWithdrawal",
     "kind": "struct",
     "members": [
       {
-        "name": "ids",
-        "type": "core::array::Array::<core::integer::u256>",
+        "name": "num_nfts",
+        "type": "core::integer::u256",
         "kind": "data"
       }
     ]
   },
   {
     "type": "event",
-    "name": "lssvm_pair::pair_erc721::LSSVMPairERC721::Event",
+    "name": "lssvm_pair::pair_erc1155::LSSVMPairERC1155::Event",
     "kind": "enum",
     "variants": [
       {
@@ -1107,17 +1001,17 @@ export const Pair721: Abi = [
       },
       {
         "name": "SwapNFTInPair",
-        "type": "lssvm_interfaces::pair::events::erc721::SwapNFTInPair",
+        "type": "lssvm_interfaces::pair::events::erc1155::SwapNFTInPair",
         "kind": "nested"
       },
       {
         "name": "SwapNFTOutPair",
-        "type": "lssvm_interfaces::pair::events::erc721::SwapNFTOutPair",
+        "type": "lssvm_interfaces::pair::events::erc1155::SwapNFTOutPair",
         "kind": "nested"
       },
       {
         "name": "NFTWithdrawal",
-        "type": "lssvm_interfaces::pair::events::erc721::NFTWithdrawal",
+        "type": "lssvm_interfaces::pair::events::erc1155::NFTWithdrawal",
         "kind": "nested"
       }
     ]

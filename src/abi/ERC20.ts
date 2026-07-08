@@ -1,169 +1,209 @@
-export const ERC20 = [
-    { "inputs": [], "stateMutability": "nonpayable", "type": "constructor" },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "owner",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "spender",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "Approval",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "from",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "to",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "Transfer",
-      "type": "event"
-    },
-    {
-      "inputs": [],
-      "name": "DOMAIN_SEPARATOR",
-      "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        { "internalType": "address", "name": "", "type": "address" },
-        { "internalType": "address", "name": "", "type": "address" }
-      ],
-      "name": "allowance",
-      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        { "internalType": "address", "name": "spender", "type": "address" },
-        { "internalType": "uint256", "name": "amount", "type": "uint256" }
-      ],
-      "name": "approve",
-      "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
-      "name": "balanceOf",
-      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "decimals",
-      "outputs": [{ "internalType": "uint8", "name": "", "type": "uint8" }],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        { "internalType": "address", "name": "to", "type": "address" },
-        { "internalType": "uint256", "name": "amount", "type": "uint256" }
-      ],
-      "name": "mint",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "name",
-      "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
-      "name": "nonces",
-      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        { "internalType": "address", "name": "owner", "type": "address" },
-        { "internalType": "address", "name": "spender", "type": "address" },
-        { "internalType": "uint256", "name": "value", "type": "uint256" },
-        { "internalType": "uint256", "name": "deadline", "type": "uint256" },
-        { "internalType": "uint8", "name": "v", "type": "uint8" },
-        { "internalType": "bytes32", "name": "r", "type": "bytes32" },
-        { "internalType": "bytes32", "name": "s", "type": "bytes32" }
-      ],
-      "name": "permit",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "symbol",
-      "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalSupply",
-      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        { "internalType": "address", "name": "to", "type": "address" },
-        { "internalType": "uint256", "name": "amount", "type": "uint256" }
-      ],
-      "name": "transfer",
-      "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        { "internalType": "address", "name": "from", "type": "address" },
-        { "internalType": "address", "name": "to", "type": "address" },
-        { "internalType": "uint256", "name": "amount", "type": "uint256" }
-      ],
-      "name": "transferFrom",
-      "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    }
-  ] as const;
-  
+// Sierra ABI extracted from lssvm2-starknet `target/dev/OZ IERC20 + IERC20Metadata (assembled).contract_class.json`.
+// Regenerate with the lssvm2-starknet port tooling whenever the Cairo contracts change.
+// Do not edit by hand.
+import type { Abi } from 'starknet';
+
+export const ERC20: Abi = [
+  {
+    "type": "struct",
+    "name": "core::integer::u256",
+    "members": [
+      {
+        "name": "low",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "high",
+        "type": "core::integer::u128"
+      }
+    ]
+  },
+  {
+    "type": "enum",
+    "name": "core::bool",
+    "variants": [
+      {
+        "name": "False",
+        "type": "()"
+      },
+      {
+        "name": "True",
+        "type": "()"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "core::byte_array::ByteArray",
+    "members": [
+      {
+        "name": "data",
+        "type": "core::array::Array::<core::bytes_31::bytes31>"
+      },
+      {
+        "name": "pending_word",
+        "type": "core::felt252"
+      },
+      {
+        "name": "pending_word_len",
+        "type": "core::internal::bounded_int::BoundedInt::<0, 30>"
+      }
+    ]
+  },
+  {
+    "type": "interface",
+    "name": "openzeppelin_interfaces::token::erc20::IERC20",
+    "items": [
+      {
+        "type": "function",
+        "name": "total_supply",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::integer::u256"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "balance_of",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::integer::u256"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "allowance",
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "spender",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::integer::u256"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "transfer",
+        "inputs": [
+          {
+            "name": "recipient",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount",
+            "type": "core::integer::u256"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "transfer_from",
+        "inputs": [
+          {
+            "name": "sender",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "recipient",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount",
+            "type": "core::integer::u256"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "approve",
+        "inputs": [
+          {
+            "name": "spender",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount",
+            "type": "core::integer::u256"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "external"
+      }
+    ]
+  },
+  {
+    "type": "interface",
+    "name": "openzeppelin_interfaces::token::erc20::IERC20Metadata",
+    "items": [
+      {
+        "type": "function",
+        "name": "name",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::byte_array::ByteArray"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "symbol",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::byte_array::ByteArray"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "decimals",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::integer::u8"
+          }
+        ],
+        "state_mutability": "view"
+      }
+    ]
+  }
+];

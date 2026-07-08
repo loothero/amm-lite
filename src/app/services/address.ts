@@ -19,9 +19,11 @@ export const ZERO_ADDRESS =
 
 /**
  * Normalize a felt address to its canonical form: `0x` + 64 lowercase hex
- * digits (66 chars). Throws on non-hex input or out-of-range felts.
+ * digits (66 chars). Accepts hex strings and bigints (starknet.js parses
+ * ContractAddress read results as bigint). Throws on non-hex input or
+ * out-of-range felts.
  */
-export function normalizeAddress(address: string): string {
+export function normalizeAddress(address: string | bigint): string {
   return validateAndParseAddress(address);
 }
 
@@ -86,11 +88,6 @@ export const CHAIN_ID = {
   STARKNET: 'STARKNET',
   SEPOLIA: 'SEPOLIA',
   DEVNET: 'DEVNET',
-  // TODO(starknet-port, phase 6): legacy EVM networks kept only so the
-  // not-yet-ported components/services (EVM contract call sites) still
-  // compile. Remove together with those call sites.
-  YOMINET: 'YOMINET',
-  ETHEREUM: 'ETHEREUM',
 } as const;
 
 // Create a type from the values of CHAIN_ID
@@ -106,45 +103,28 @@ interface ContractAddressesType {
   XYK_CURVE_V2?: string;
   GDA_CURVE_V2?: string;
   VERY_FAST_ROUTER_V2?: string;
-  MULTICALL?: string;
   LISTING_BOOK?: string;
   KAMI?: string;
+  /** The ERC20 this chain treats as "ETH" (the Starknet fee token). */
+  ETH_TOKEN?: string;
 }
 
 // Define the contract addresses record type
 export type ContractAddressesRecord = Record<ChainIdType, ContractAddressesType>;
 
-// Export the contract addresses with proper typing
+// Export the contract addresses with proper typing.
+// lssvm2-starknet addresses on public networks are unset until deployed
+// there; the DEVNET entry is populated at runtime from the deployments file
+// (see deployments.ts) and stays a placeholder when the file is absent.
 export const CONTRACT_ADDRESSES: ContractAddressesRecord = {
-  // TODO(starknet-port, phase 6): fill in once the lssvm2-starknet contracts
-  // (factory, curves, router, listing book) are declared/deployed.
-  [CHAIN_ID.STARKNET]: {},
-  [CHAIN_ID.SEPOLIA]: {},
-  [CHAIN_ID.DEVNET]: {},
-  // TODO(starknet-port, phase 6): legacy EVM deployments, remove with the
-  // EVM call sites.
-  [CHAIN_ID.YOMINET]: {
-    PAIR_FACTORY_V2_HOOKS: '0x470C73Ed96D0b6DB8F152827510bffE2a69BA538',
-    LINEAR_CURVE_V2: '0x3F33C248CEB275cbBB93adB138A32C76d9060D99',
-    EXPONENTIAL_CURVE_V2: '0x6c4BBEC8E3544D4A58B3E2487CfA4097Ded19eDc',
-    XYK_CURVE_V2: '0x38BA53D83dE7234A04E6F0ec5Fb779681e3940cf',
-    GDA_CURVE_V2: '0x53f0E31E2B8084ce4dD5991EcF157B181fc38bC1',
-    VERY_FAST_ROUTER_V2: '0x1A72CB0Ab23aaF24472855EF30b5714A1a87046B',
-    MULTICALL: '0x14521bbB801ac766568d7CE82cFB2968b98B4Ca3',
-    LISTING_BOOK: '0x048000C86B685e6eB69f6FcB0B1a5e7E5C80b130',
-    KAMI: '0x5d4376b62fa8ac16dfabe6a9861e11c33a48c677'
-  },
-  [CHAIN_ID.ETHEREUM]: {
-    // Used to detect pair variant when looking up a pool by address.
-    PAIR_FACTORY_V2: '0xA020d57aB0448Ef74115c112D18a9C231CC86000',
-    PAIR_FACTORY: '0xb16c1342E617A5B6E4b631EB114483FDB289c0A4'
-  }
+  [CHAIN_ID.STARKNET]: { ETH_TOKEN: ETH_ERC20_ADDRESS },
+  [CHAIN_ID.SEPOLIA]: { ETH_TOKEN: ETH_ERC20_ADDRESS },
+  [CHAIN_ID.DEVNET]: { ETH_TOKEN: ETH_ERC20_ADDRESS },
 };
 
 // Normalized Starknet chain id (hex felt string) -> CHAIN_ID label.
-// TODO(starknet-port, phase 6): rename to CHAIN_ID_BY_CHAIN_ID — the name is
-// kept (chain ids used to be EVM numbers) to avoid touching the not-yet-ported
-// components that index into it.
+// (Name kept from the EVM era, when chain ids were numbers, to minimize
+// call-site churn.)
 export const CHAIN_ID_BY_NUMBER: Record<string, ChainIdType> = {
   [STARKNET_CHAIN_ID.SN_MAIN]: CHAIN_ID.STARKNET,
   [STARKNET_CHAIN_ID.SN_SEPOLIA]: CHAIN_ID.SEPOLIA,
@@ -158,9 +138,4 @@ export const CHAIN_ID_BY_LABEL: Record<string, ChainIdType> = {
   sepolia: CHAIN_ID.SEPOLIA,
   devnet: CHAIN_ID.DEVNET,
   katana: CHAIN_ID.DEVNET,
-  // TODO(starknet-port, phase 6): legacy EVM slugs, remove with the EVM
-  // call sites.
-  yominet: CHAIN_ID.YOMINET,
-  ethereum: CHAIN_ID.ETHEREUM,
-  eth: CHAIN_ID.ETHEREUM,
 };

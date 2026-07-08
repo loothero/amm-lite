@@ -2,20 +2,14 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { Contract } from 'starknet';
 import { WalletService } from '../services/wallet.service';
 import { NFTService, TransactionStatus } from '../services/nft.service';
-import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL, isAddressEqual } from '../services/address';
+import { CHAIN_ID, ChainIdType, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL, isAddressEqual, normalizeAddress } from '../services/address';
 import { Pair721 } from '../../abi/Pair721';
-import { Multicall } from '../../abi/Multicall';
 import { ERC721 } from '../../abi/ERC721';
-import { encodeFunctionData, decodeFunctionResult } from 'viem';
+import { parseNftQuote, u256ArrayCalldata } from '../services/starknet.util';
 import { formatTokenAmount } from '../services/format.util';
-
-// Define a type for the multicall calls
-interface MulticallCall {
-  target: `0x${string}`;
-  callData: `0x${string}`;
-}
 
 // Define a type for NFT attributes
 interface NFTAttribute {
@@ -57,7 +51,7 @@ export class ManageComponent implements OnInit {
   address: string | null = null;
 
   // Chain information
-  chainId: ChainIdType = CHAIN_ID.YOMINET; // Default to YOMINET
+  chainId: ChainIdType = CHAIN_ID.DEVNET; // Default to DEVNET
 
   // NFT IDs data
   nftIds = signal<readonly bigint[]>([]);
@@ -81,8 +75,8 @@ export class ManageComponent implements OnInit {
 
   get currentChainId(): ChainIdType {
     const chain = this.walletService.getCurrentChain();
-    if (!chain) return CHAIN_ID.YOMINET;
-    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.YOMINET;
+    if (!chain) return CHAIN_ID.DEVNET;
+    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.DEVNET;
   }
 
   ngOnInit(): void {
@@ -113,8 +107,8 @@ export class ManageComponent implements OnInit {
     if (mapped) {
       this.chainId = mapped;
     } else {
-      this.chainId = CHAIN_ID.YOMINET;
-      console.warn(`Unrecognized chain label: ${label}, defaulting to YOMINET`);
+      this.chainId = CHAIN_ID.DEVNET;
+      console.warn(`Unrecognized chain label: ${label}, defaulting to DEVNET`);
     }
   }
 
@@ -155,99 +149,36 @@ export class ManageComponent implements OnInit {
       this.withdrawSuccess.set(false);
       this.withdrawError.set('');
 
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        this.errorMessage.set('No public client available');
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        this.errorMessage.set('No provider available');
         this.isLoading.set(false);
         return;
       }
 
-      // Get the Multicall contract address for the current chain
-      const multicallAddress = CONTRACT_ADDRESSES[this.currentChainId].MULTICALL as `0x${string}`;
+      console.log('Fetching NFT IDs for pair:', { pairAddress });
 
-      console.log('Fetching NFT IDs for pair:', {
-        pairAddress,
-        multicallAddress
-      });
+      // Batch the independent pair reads over the RPC provider
+      // (replaces the old Multicall contract aggregation).
+      const pair = new Contract(Pair721, pairAddress, provider);
+      const [ids, rawNftAddress, rawQuote, rawOwner] = await Promise.all([
+        pair.call('get_all_ids', []) as Promise<bigint[]>,
+        pair.call('nft', []) as Promise<bigint>,
+        pair.call('get_buy_nft_quote', [0n, 1n]), // asset_id=0, num_nfts=1
+        pair.call('owner', []) as Promise<bigint>,
+      ]);
 
-      // Prepare the calls for Multicall to get getAllIds, nft address, owner, and price quote
-      const calls: MulticallCall[] = [
-        {
-          target: pairAddress as `0x${string}`,
-          callData: encodeFunctionData({
-            abi: Pair721,
-            functionName: 'getAllIds'
-          })
-        },
-        {
-          target: pairAddress as `0x${string}`,
-          callData: encodeFunctionData({
-            abi: Pair721,
-            functionName: 'nft'
-          })
-        },
-        {
-          target: pairAddress as `0x${string}`,
-          callData: encodeFunctionData({
-            abi: Pair721,
-            functionName: 'getBuyNFTQuote',
-            args: [0n, 1n] // id=0, quantity=1
-          })
-        },
-        {
-          target: pairAddress as `0x${string}`,
-          callData: encodeFunctionData({
-            abi: Pair721,
-            functionName: 'owner'
-          })
-        }
-      ];
+      const nftAddress = normalizeAddress(rawNftAddress);
+      const ownerAddress = normalizeAddress(rawOwner);
 
-      // Execute the Multicall
-      const result = await publicClient.readContract({
-        address: multicallAddress,
-        abi: Multicall,
-        functionName: 'aggregate' as any,
-        args: [calls as any]
-      }) as unknown;
-
-      // Extract the return data from the result
-      const [, returnData] = result as [bigint, `0x${string}`[]];
-
-      // Decode the getAllIds result
-      const ids = decodeFunctionResult({
-        abi: Pair721,
-        functionName: 'getAllIds',
-        data: returnData[0]
-      });
-
-      // Decode the nft address result
-      const nftAddress = decodeFunctionResult({
-        abi: Pair721,
-        functionName: 'nft',
-        data: returnData[1]
-      });
-
-      // Decode the getBuyNFTQuote result
-      const quoteResult = decodeFunctionResult({
-        abi: Pair721,
-        functionName: 'getBuyNFTQuote',
-        data: returnData[2]
-      }) as [number, bigint, bigint, bigint, bigint, bigint]; // [error, newSpotPrice, newDelta, inputAmount, protocolFee, royaltyAmount]
-
-      // Decode the owner result
-      const ownerAddress = decodeFunctionResult({
-        abi: Pair721,
-        functionName: 'owner',
-        data: returnData[3]
-      }) as string;
-
-      // Extract the inputAmount (index 3 in the result array)
-      const inputAmount = quoteResult[3];
+      // NFTQuote struct fields: (error, new_spot_price, new_delta, amount,
+      // protocol_fee, royalty_amount); error != 0 => quote unavailable.
+      const quote = parseNftQuote(rawQuote);
+      const inputAmount = quote.error === 0 ? quote.amount : 0n;
 
       console.log('NFT IDs for pair:', ids);
       console.log('NFT contract address:', nftAddress);
-      console.log('Buy NFT price quote:', inputAmount);
+      console.log('Buy NFT price quote:', inputAmount, quote.error !== 0 ? `(curve error ${quote.errorName})` : '');
       console.log('Pool owner address:', ownerAddress);
 
       // Check if the current wallet address is the pool owner
@@ -256,7 +187,7 @@ export class ManageComponent implements OnInit {
 
       // Update the signals
       this.nftIds.set(ids);
-      this.nftContractAddress.set(nftAddress as string);
+      this.nftContractAddress.set(nftAddress);
       this.nftPrice.set(inputAmount);
       this.isPoolOwner.set(isOwner);
 
@@ -304,9 +235,9 @@ export class ManageComponent implements OnInit {
       this.withdrawSuccess.set(false);
       this.withdrawError.set('');
 
-      const walletClient = this.walletService.getWalletClient();
-      if (!walletClient) {
-        this.withdrawError.set('No wallet client available');
+      const account = this.walletService.getAccount();
+      if (!account) {
+        this.withdrawError.set('No wallet account available');
         this.isWithdrawing.set(false);
         return;
       }
@@ -325,25 +256,23 @@ export class ManageComponent implements OnInit {
         walletAddress
       });
 
-      // Call withdrawERC721 on the pair contract
-      const hash = await walletClient.writeContract({
-        address: this.address as `0x${string}`,
-        abi: Pair721,
-        functionName: 'withdrawERC721',
-        args: [
-          this.nftContractAddress() as `0x${string}`,
-          [...this.nftIds()] // Convert readonly array to regular array
+      // Call withdraw_erc721 on the pair contract
+      const pairAddress = this.address!; // guarded at method entry
+      const { transaction_hash: hash } = await account.execute([{
+        contractAddress: pairAddress,
+        entrypoint: 'withdraw_erc721',
+        calldata: [
+          this.nftContractAddress(),
+          ...u256ArrayCalldata(this.nftIds()),
         ],
-        chain: this.walletService.getCurrentChain(),
-        account: walletAddress as `0x${string}`
-      });
+      }]);
 
       console.log('Withdrawal transaction hash:', hash);
 
-      // Wait for the transaction to be mined
-      const publicClient = this.walletService.getPublicClient();
-      if (publicClient) {
-        await publicClient.waitForTransactionReceipt({ hash });
+      // Wait for the transaction to be accepted
+      const provider = this.walletService.getProvider();
+      if (provider) {
+        await provider.waitForTransaction(hash);
       }
 
       // Set success state
@@ -498,18 +427,20 @@ export class ManageComponent implements OnInit {
    * @returns The parsed metadata
    */
   async fetchTokenURI(nftAddress: string, tokenId: bigint): Promise<NFTMetadata> {
-    const publicClient = this.walletService.getPublicClient();
-    if (!publicClient) {
-      throw new Error('No public client available');
+    const provider = this.walletService.getProvider();
+    if (!provider) {
+      throw new Error('No provider available');
     }
 
-    // Call tokenURI on the NFT contract
-    const tokenURI = await publicClient.readContract({
-      address: nftAddress as `0x${string}`,
-      abi: ERC721,
-      functionName: 'tokenURI',
-      args: [tokenId]
-    }) as string;
+    // Call token_uri on the NFT contract (fall back to the legacy camelCase
+    // tokenURI entrypoint some collections expose instead).
+    const nft = new Contract(ERC721, nftAddress, provider);
+    let tokenURI: string;
+    try {
+      tokenURI = await nft.call('token_uri', [tokenId]) as string;
+    } catch {
+      tokenURI = await nft.call('tokenURI', [tokenId]) as string;
+    }
 
     // Parse the metadata
     return this.parseBase64Metadata(tokenURI);

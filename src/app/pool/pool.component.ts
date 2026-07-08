@@ -2,6 +2,7 @@ import { Component, OnInit, computed, effect, inject, signal } from '@angular/co
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { CairoCustomEnum, Contract, RpcProvider } from 'starknet';
 import { WalletService } from '../services/wallet.service';
 import { NFTService, PairVersion, TransactionStatus } from '../services/nft.service';
 import {
@@ -11,12 +12,12 @@ import {
   CHAIN_ID_BY_NUMBER,
   ZERO_ADDRESS,
   isAddressEqual,
+  normalizeAddress,
 } from '../services/address';
-import { Pair } from '../../abi/Pair';
 import { Pair721 } from '../../abi/Pair721';
 import { ERC721 } from '../../abi/ERC721';
 import { ERC20 } from '../../abi/ERC20';
-import { PublicClient } from 'viem';
+import { decodePoolType, parseNftQuote } from '../services/starknet.util';
 import { formatTokenAmount, shortAddress } from '../services/format.util';
 
 @Component({
@@ -133,7 +134,7 @@ export class PoolComponent implements OnInit {
       const fromLabel = CHAIN_ID_BY_LABEL[this.routeLabel.toLowerCase()];
       if (fromLabel) return fromLabel;
     }
-    return CHAIN_ID.ETHEREUM;
+    return CHAIN_ID.STARKNET;
   }
 
   nativeSymbol(): string {
@@ -157,13 +158,13 @@ export class PoolComponent implements OnInit {
 
   submitAddress(): void {
     if (!this.inputAddress) return;
-    const label = this.routeLabel ?? 'ethereum';
+    const label = this.routeLabel ?? 'starknet';
     this.router.navigate(['/pool', label, this.inputAddress.trim()]);
   }
 
   /**
    * Loads pool state in two waves of independent reads. Every read is
-   * wrapped in its own try/catch — a revert in one (e.g. getAllIds on a
+   * wrapped in its own try/catch — a revert in one (e.g. get_all_ids on a
    * pool with a property checker) does not block any other read.
    */
   async loadPool(): Promise<void> {
@@ -174,42 +175,41 @@ export class PoolComponent implements OnInit {
     this.isLoading.set(true);
 
     try {
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        this.loadError.set('No public client available — connect a wallet first.');
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        this.loadError.set('No provider available — connect a wallet first.');
         return;
       }
 
       const version = await this.nftService.detectPairVersion(addr);
       this.pairVersion.set(version);
 
-      const pair = addr as `0x${string}`;
-      const pairAbi = version === 'v1' ? Pair : Pair721;
+      const pair = addr;
 
       const [nft, owner, ptype] = await Promise.all([
-        this.readPairView<string>(publicClient, pair, pairAbi, 'nft'),
-        this.readPairView<string>(publicClient, pair, pairAbi, 'owner'),
-        this.readPairView<number>(publicClient, pair, pairAbi, 'poolType'),
+        this.readPairView<bigint>(provider, pair, 'nft'),
+        this.readPairView<bigint>(provider, pair, 'owner'),
+        this.readPairView<CairoCustomEnum>(provider, pair, 'pool_type'),
       ]);
-      if (nft !== undefined) this.nftContractAddress.set(nft);
-      if (owner !== undefined) this.ownerAddress.set(owner);
-      if (ptype !== undefined) this.poolType.set(Number(ptype));
+      if (nft !== undefined) this.nftContractAddress.set(normalizeAddress(nft));
+      if (owner !== undefined) this.ownerAddress.set(normalizeAddress(owner));
+      if (ptype !== undefined) this.poolType.set(decodePoolType(ptype));
 
       await Promise.allSettled([
-        this.readInventory(publicClient, pair, pairAbi, version),
-        this.readQuoteToken(publicClient, pair, pairAbi),
-        this.refreshBuyQuote(publicClient, pairAbi, version),
-        this.refreshSellQuote(publicClient, pairAbi, version),
-        this.readNativeBalance(publicClient, pair),
+        this.readInventory(provider, pair),
+        this.readQuoteToken(provider, pair),
+        this.refreshBuyQuote(provider),
+        this.refreshSellQuote(provider),
+        this.readEthBalance(provider, pair),
       ]);
 
       const nftAddr = this.nftContractAddress();
       const tokenAddr = this.tokenAddress();
       await Promise.allSettled([
-        nftAddr ? this.readNftMetadata(publicClient, nftAddr) : Promise.resolve(),
-        nftAddr ? this.readNftBalanceFallback(publicClient, nftAddr, pair) : Promise.resolve(),
-        tokenAddr ? this.readErc20Metadata(publicClient, tokenAddr) : Promise.resolve(),
-        tokenAddr ? this.readErc20Balance(publicClient, tokenAddr, pair) : Promise.resolve(),
+        nftAddr ? this.readNftMetadata(provider, nftAddr) : Promise.resolve(),
+        nftAddr ? this.readNftBalanceFallback(provider, nftAddr, pair) : Promise.resolve(),
+        tokenAddr ? this.readErc20Metadata(provider, tokenAddr) : Promise.resolve(),
+        tokenAddr ? this.readErc20Balance(provider, tokenAddr, pair) : Promise.resolve(),
       ]);
     } catch (e) {
       console.error('Error loading pool', e);
@@ -247,10 +247,11 @@ export class PoolComponent implements OnInit {
   }
 
   private async readPairView<T>(
-    publicClient: PublicClient, pair: `0x${string}`, abi: any, fn: string,
+    provider: RpcProvider, pair: string, fn: string,
   ): Promise<T | undefined> {
     try {
-      return await publicClient.readContract({ address: pair, abi, functionName: fn, args: [] } as any) as T;
+      const contract = new Contract(Pair721, pair, provider);
+      return await contract.call(fn, []) as T;
     } catch (e) {
       console.warn(`Pair ${fn}() reverted:`, e);
       return undefined;
@@ -259,12 +260,13 @@ export class PoolComponent implements OnInit {
 
   /** Read two view fields from a contract concurrently, with per-field fallbacks. */
   private async readContractFields<A, B>(
-    publicClient: PublicClient, address: `0x${string}`, abi: any,
+    provider: RpcProvider, address: string, abi: any,
     fields: [{ fn: string; fallback: A }, { fn: string; fallback: B }],
   ): Promise<[A, B]> {
+    const contract = new Contract(abi, address, provider);
     const read = async <T>(fn: string, fallback: T): Promise<T> => {
       try {
-        return await publicClient.readContract({ address, abi, functionName: fn } as any) as T;
+        return await contract.call(fn, []) as T;
       } catch { return fallback; }
     };
     const [a, b] = await Promise.all([
@@ -274,15 +276,10 @@ export class PoolComponent implements OnInit {
     return [a, b];
   }
 
-  private async readInventory(
-    publicClient: PublicClient, pair: `0x${string}`, abi: any, version: PairVersion,
-  ): Promise<void> {
+  private async readInventory(provider: RpcProvider, pair: string): Promise<void> {
     try {
-      const inventory = await publicClient.readContract({
-        address: pair, abi,
-        functionName: version === 'v1' ? 'getAllHeldIds' : 'getAllIds',
-        args: [],
-      } as any) as readonly bigint[];
+      const contract = new Contract(Pair721, pair, provider);
+      const inventory = await contract.call('get_all_ids', []) as readonly bigint[];
       this.inventoryIds.set(inventory);
     } catch (e) {
       console.warn('Inventory read reverted', e);
@@ -290,31 +287,33 @@ export class PoolComponent implements OnInit {
     }
   }
 
-  private async readQuoteToken(
-    publicClient: PublicClient, pair: `0x${string}`, abi: any,
-  ): Promise<void> {
+  private async readQuoteToken(provider: RpcProvider, pair: string): Promise<void> {
     try {
-      const tok = await publicClient.readContract({
-        address: pair, abi, functionName: 'token', args: [],
-      } as any) as string;
+      const contract = new Contract(Pair721, pair, provider);
+      const tok = normalizeAddress(await contract.call('token', []) as bigint);
+      // Note: on Starknet "ETH" pools still price in the configured ETH
+      // ERC20, so token() is never zero in practice — the pool is displayed
+      // as an ERC20 pool whose symbol is ETH.
       if (tok && !isAddressEqual(tok, ZERO_ADDRESS)) this.tokenAddress.set(tok);
     } catch {
-      // ETH pair — leave tokenAddress empty.
+      // token() unreadable — leave tokenAddress empty.
     }
   }
 
-  private async readNativeBalance(publicClient: PublicClient, pair: `0x${string}`): Promise<void> {
+  /** ETH-ERC20 balance of the pair (only used when token() is unset/zero). */
+  private async readEthBalance(provider: RpcProvider, pair: string): Promise<void> {
     try {
-      const bal = await publicClient.getBalance({ address: pair });
+      const eth = new Contract(ERC20, this.walletService.ethTokenAddress(), provider);
+      const bal = await eth.call('balance_of', [pair]) as bigint;
       if (!this.tokenAddress()) this.tokenBalanceInPool.set(bal);
     } catch (e) {
-      console.warn('Native balance read failed', e);
+      console.warn('ETH balance read failed', e);
     }
   }
 
-  private async readNftMetadata(publicClient: PublicClient, nftAddr: string): Promise<void> {
+  private async readNftMetadata(provider: RpcProvider, nftAddr: string): Promise<void> {
     const [name, symbol] = await this.readContractFields<string, string>(
-      publicClient, nftAddr as `0x${string}`, ERC721,
+      provider, nftAddr, ERC721,
       [{ fn: 'name', fallback: 'Unknown' }, { fn: 'symbol', fallback: '???' }],
     );
     this.nftName.set(name);
@@ -322,22 +321,20 @@ export class PoolComponent implements OnInit {
   }
 
   private async readNftBalanceFallback(
-    publicClient: PublicClient, nftAddr: string, pair: `0x${string}`,
+    provider: RpcProvider, nftAddr: string, pair: string,
   ): Promise<void> {
     try {
-      const bal = await publicClient.readContract({
-        address: nftAddr as `0x${string}`,
-        abi: ERC721, functionName: 'balanceOf', args: [pair],
-      } as any) as bigint;
+      const contract = new Contract(ERC721, nftAddr, provider);
+      const bal = await contract.call('balance_of', [pair]) as bigint;
       this.nftBalanceInPool.set(bal);
     } catch (e) {
-      console.warn('NFT balanceOf(pair) failed', e);
+      console.warn('NFT balance_of(pair) failed', e);
     }
   }
 
-  private async readErc20Metadata(publicClient: PublicClient, tokenAddr: string): Promise<void> {
-    const [symbol, decimals] = await this.readContractFields<string, number>(
-      publicClient, tokenAddr as `0x${string}`, ERC20,
+  private async readErc20Metadata(provider: RpcProvider, tokenAddr: string): Promise<void> {
+    const [symbol, decimals] = await this.readContractFields<string, number | bigint>(
+      provider, tokenAddr, ERC20,
       [{ fn: 'symbol', fallback: 'TOKEN' }, { fn: 'decimals', fallback: 18 }],
     );
     this.tokenSymbol.set(symbol);
@@ -345,16 +342,14 @@ export class PoolComponent implements OnInit {
   }
 
   private async readErc20Balance(
-    publicClient: PublicClient, tokenAddr: string, pair: `0x${string}`,
+    provider: RpcProvider, tokenAddr: string, pair: string,
   ): Promise<void> {
     try {
-      const bal = await publicClient.readContract({
-        address: tokenAddr as `0x${string}`,
-        abi: ERC20, functionName: 'balanceOf', args: [pair],
-      } as any) as bigint;
+      const contract = new Contract(ERC20, tokenAddr, provider);
+      const bal = await contract.call('balance_of', [pair]) as bigint;
       this.tokenBalanceInPool.set(bal);
     } catch (e) {
-      console.warn('ERC20 balanceOf(pair) failed', e);
+      console.warn('ERC20 balance_of(pair) failed', e);
     }
   }
 
@@ -362,60 +357,49 @@ export class PoolComponent implements OnInit {
    * Quote count defaults to 1 when nothing is selected, so the page always
    * shows at least the single-item floor / top-bid.
    */
-  async refreshBuyQuote(
-    publicClient?: PublicClient | null, abi?: any, version?: PairVersion | null,
-  ): Promise<void> {
-    publicClient ??= this.walletService.getPublicClient();
-    version ??= this.pairVersion();
-    abi ??= version === 'v1' ? Pair : Pair721;
+  async refreshBuyQuote(provider?: RpcProvider | null): Promise<void> {
+    provider ??= this.walletService.getProvider();
     const pair = this.pairAddress();
-    if (!publicClient || !pair || !version) return;
+    if (!provider || !pair) return;
     await this.fetchQuote(
-      publicClient, pair as `0x${string}`, abi, version,
-      'getBuyNFTQuote',
+      provider, pair,
+      'get_buy_nft_quote',
       Math.max(1, this.effectiveBuyIds().length),
       this.buyPrice, this.buyError, 'Buy quote unavailable',
     );
   }
 
-  async refreshSellQuote(
-    publicClient?: PublicClient | null, abi?: any, version?: PairVersion | null,
-  ): Promise<void> {
-    publicClient ??= this.walletService.getPublicClient();
-    version ??= this.pairVersion();
-    abi ??= version === 'v1' ? Pair : Pair721;
+  async refreshSellQuote(provider?: RpcProvider | null): Promise<void> {
+    provider ??= this.walletService.getProvider();
     const pair = this.pairAddress();
-    if (!publicClient || !pair || !version) return;
+    if (!provider || !pair) return;
     await this.fetchQuote(
-      publicClient, pair as `0x${string}`, abi, version,
-      'getSellNFTQuote',
+      provider, pair,
+      'get_sell_nft_quote',
       Math.max(1, this.sellIds().length),
       this.sellPrice, this.sellQuoteError, 'Sell quote unavailable',
     );
   }
 
   private async fetchQuote(
-    publicClient: PublicClient, pair: `0x${string}`, abi: any, version: PairVersion,
-    fn: 'getBuyNFTQuote' | 'getSellNFTQuote',
+    provider: RpcProvider, pair: string,
+    fn: 'get_buy_nft_quote' | 'get_sell_nft_quote',
     count: number,
     priceSig: { set(v: bigint | null): void },
     errorSig: { set(v: string): void },
     errorPrefix: string,
   ): Promise<void> {
-    const args = version === 'v1' ? [BigInt(count)] : [0n, BigInt(count)];
     try {
-      const result = await publicClient.readContract({
-        address: pair, abi, functionName: fn, args,
-      } as any) as readonly bigint[];
-      const errCode = Number(result[0]);
-      if (errCode !== 0) {
+      const contract = new Contract(Pair721, pair, provider);
+      // NFTQuote struct fields: (error, new_spot_price, new_delta, amount,
+      // protocol_fee, royalty_amount); error != 0 => quote unavailable.
+      const quote = parseNftQuote(await contract.call(fn, [0n, BigInt(count)]));
+      if (quote.error !== 0) {
         priceSig.set(null);
-        errorSig.set(`${errorPrefix} (curve error ${errCode}).`);
+        errorSig.set(`${errorPrefix} (curve error ${quote.error}).`);
         return;
       }
-      // v1: [error, newSpot, newDelta, amount, fee]
-      // v2: [error, newSpot, newDelta, amount, fee, royalty]
-      priceSig.set(result[3]);
+      priceSig.set(quote.amount);
       errorSig.set('');
     } catch (e) {
       console.warn(`${fn} failed`, e);

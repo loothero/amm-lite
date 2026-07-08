@@ -1,964 +1,1200 @@
-export const FactoryABI = [
-    {
-      "type": "constructor",
-      "inputs": [
-        {
-          "name": "_erc721ETHTemplate",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC721ETH"
-        },
-        {
-          "name": "_erc721ERC20Template",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC721ERC20"
-        },
-        {
-          "name": "_erc1155ETHTemplate",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC1155ETH"
-        },
-        {
-          "name": "_erc1155ERC20Template",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC1155ERC20"
-        },
-        {
-          "name": "_protocolFeeRecipient",
-          "type": "address",
-          "internalType": "address payable"
-        },
-        {
-          "name": "_protocolFeeMultiplier",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        { "name": "_owner", "type": "address", "internalType": "address" }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    { "type": "receive", "stateMutability": "payable" },
-    {
-      "type": "function",
-      "name": "addProtocolFeeRecipientReferral",
-      "inputs": [
-        {
-          "name": "referrerAddress",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "recipientAddress",
-          "type": "address",
-          "internalType": "address payable"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "authAllowedForToken",
-      "inputs": [
-        {
-          "name": "tokenAddress",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "proposedAuthAddress",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "bondingCurveAllowed",
-      "inputs": [
-        { "name": "", "type": "address", "internalType": "contract ICurve" }
-      ],
-      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "changeDefaultProtocolFeeRecipient",
-      "inputs": [
-        {
-          "name": "_defaultProtocolFeeRecipient",
-          "type": "address",
-          "internalType": "address payable"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "changeProtocolFeeMultiplier",
-      "inputs": [
-        {
-          "name": "_protocolFeeMultiplier",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "closeLock",
-      "inputs": [],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "createPairERC1155ERC20",
-      "inputs": [
-        {
-          "name": "params",
-          "type": "tuple",
-          "internalType": "struct LSSVMPairFactory.CreateERC1155ERC20PairParams",
-          "components": [
-            {
-              "name": "token",
-              "type": "address",
-              "internalType": "contract ERC20"
-            },
-            {
-              "name": "nft",
-              "type": "address",
-              "internalType": "contract IERC1155"
-            },
-            {
-              "name": "bondingCurve",
-              "type": "address",
-              "internalType": "contract ICurve"
-            },
-            {
-              "name": "assetRecipient",
-              "type": "address",
-              "internalType": "address payable"
-            },
-            {
-              "name": "poolType",
-              "type": "uint8",
-              "internalType": "enum LSSVMPair.PoolType"
-            },
-            { "name": "delta", "type": "uint128", "internalType": "uint128" },
-            { "name": "fee", "type": "uint96", "internalType": "uint96" },
-            {
-              "name": "spotPrice",
-              "type": "uint128",
-              "internalType": "uint128"
-            },
-            { "name": "nftId", "type": "uint256", "internalType": "uint256" },
-            {
-              "name": "initialNFTBalance",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "initialTokenBalance",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "hookAddress",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "referralAddress",
-              "type": "address",
-              "internalType": "address"
-            }
-          ]
-        }
-      ],
-      "outputs": [
-        {
-          "name": "pair",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC1155ERC20"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "createPairERC1155ETH",
-      "inputs": [
-        {
-          "name": "_nft",
-          "type": "address",
-          "internalType": "contract IERC1155"
-        },
-        {
-          "name": "_bondingCurve",
-          "type": "address",
-          "internalType": "contract ICurve"
-        },
-        {
-          "name": "_assetRecipient",
-          "type": "address",
-          "internalType": "address payable"
-        },
-        {
-          "name": "_poolType",
-          "type": "uint8",
-          "internalType": "enum LSSVMPair.PoolType"
-        },
-        { "name": "_delta", "type": "uint128", "internalType": "uint128" },
-        { "name": "_fee", "type": "uint96", "internalType": "uint96" },
-        { "name": "_spotPrice", "type": "uint128", "internalType": "uint128" },
-        { "name": "_nftId", "type": "uint256", "internalType": "uint256" },
-        {
-          "name": "_initialNFTBalance",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "_hookAddress",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "_referralAddress",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "pair",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC1155ETH"
-        }
-      ],
-      "stateMutability": "payable"
-    },
-    {
-      "type": "function",
-      "name": "createPairERC721ERC20",
-      "inputs": [
-        {
-          "name": "params",
-          "type": "tuple",
-          "internalType": "struct LSSVMPairFactory.CreateERC721ERC20PairParams",
-          "components": [
-            {
-              "name": "token",
-              "type": "address",
-              "internalType": "contract ERC20"
-            },
-            {
-              "name": "nft",
-              "type": "address",
-              "internalType": "contract IERC721"
-            },
-            {
-              "name": "bondingCurve",
-              "type": "address",
-              "internalType": "contract ICurve"
-            },
-            {
-              "name": "assetRecipient",
-              "type": "address",
-              "internalType": "address payable"
-            },
-            {
-              "name": "poolType",
-              "type": "uint8",
-              "internalType": "enum LSSVMPair.PoolType"
-            },
-            { "name": "delta", "type": "uint128", "internalType": "uint128" },
-            { "name": "fee", "type": "uint96", "internalType": "uint96" },
-            {
-              "name": "spotPrice",
-              "type": "uint128",
-              "internalType": "uint128"
-            },
-            {
-              "name": "propertyChecker",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "initialNFTIDs",
-              "type": "uint256[]",
-              "internalType": "uint256[]"
-            },
-            {
-              "name": "initialTokenBalance",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "hookAddress",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "referralAddress",
-              "type": "address",
-              "internalType": "address"
-            }
-          ]
-        }
-      ],
-      "outputs": [
-        {
-          "name": "pair",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC721ERC20"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "createPairERC721ETH",
-      "inputs": [
-        {
-          "name": "_nft",
-          "type": "address",
-          "internalType": "contract IERC721"
-        },
-        {
-          "name": "_bondingCurve",
-          "type": "address",
-          "internalType": "contract ICurve"
-        },
-        {
-          "name": "_assetRecipient",
-          "type": "address",
-          "internalType": "address payable"
-        },
-        {
-          "name": "_poolType",
-          "type": "uint8",
-          "internalType": "enum LSSVMPair.PoolType"
-        },
-        { "name": "_delta", "type": "uint128", "internalType": "uint128" },
-        { "name": "_fee", "type": "uint96", "internalType": "uint96" },
-        { "name": "_spotPrice", "type": "uint128", "internalType": "uint128" },
-        {
-          "name": "_propertyChecker",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "_initialNFTIDs",
-          "type": "uint256[]",
-          "internalType": "uint256[]"
-        },
-        {
-          "name": "_hookAddress",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "_referralAddress",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "pair",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC721ETH"
-        }
-      ],
-      "stateMutability": "payable"
-    },
-    {
-      "type": "function",
-      "name": "defaultProtocolFeeRecipient",
-      "inputs": [],
-      "outputs": [
-        { "name": "", "type": "address", "internalType": "address payable" }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "depositERC1155",
-      "inputs": [
-        {
-          "name": "nft",
-          "type": "address",
-          "internalType": "contract IERC1155"
-        },
-        { "name": "id", "type": "uint256", "internalType": "uint256" },
-        { "name": "recipient", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "depositERC20",
-      "inputs": [
-        {
-          "name": "token",
-          "type": "address",
-          "internalType": "contract ERC20"
-        },
-        { "name": "recipient", "type": "address", "internalType": "address" },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "depositNFTs",
-      "inputs": [
-        {
-          "name": "_nft",
-          "type": "address",
-          "internalType": "contract IERC721"
-        },
-        { "name": "ids", "type": "uint256[]", "internalType": "uint256[]" },
-        { "name": "recipient", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "disableSettingsForPair",
-      "inputs": [
-        { "name": "settings", "type": "address", "internalType": "address" },
-        { "name": "pairAddress", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "enableSettingsForPair",
-      "inputs": [
-        { "name": "settings", "type": "address", "internalType": "address" },
-        { "name": "pairAddress", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "erc1155ERC20Template",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC1155ERC20"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "erc1155ETHTemplate",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC1155ETH"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "erc721ERC20Template",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC721ERC20"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "erc721ETHTemplate",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "contract LSSVMPairERC721ETH"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getPairNFTType",
-      "inputs": [
-        { "name": "pairAddress", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint8",
-          "internalType": "enum ILSSVMPairFactoryLike.PairNFTType"
-        }
-      ],
-      "stateMutability": "pure"
-    },
-    {
-      "type": "function",
-      "name": "getPairTokenType",
-      "inputs": [
-        { "name": "pairAddress", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint8",
-          "internalType": "enum ILSSVMPairFactoryLike.PairTokenType"
-        }
-      ],
-      "stateMutability": "pure"
-    },
-    {
-      "type": "function",
-      "name": "getProtocolFeeRecipient",
-      "inputs": [
-        {
-          "name": "referrerAddress",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        { "name": "", "type": "address", "internalType": "address payable" }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getSettingsForPair",
-      "inputs": [
-        { "name": "pairAddress", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [
-        { "name": "settingsEnabled", "type": "bool", "internalType": "bool" },
-        { "name": "bps", "type": "uint96", "internalType": "uint96" }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "isValidPair",
-      "inputs": [
-        { "name": "pairAddress", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "openLock",
-      "inputs": [],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "owner",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "protocolFeeMultiplier",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "protocolFeeRecipientReferral",
-      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "outputs": [
-        { "name": "", "type": "address", "internalType": "address payable" }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "routerStatus",
-      "inputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "contract LSSVMRouter"
-        }
-      ],
-      "outputs": [
-        { "name": "allowed", "type": "bool", "internalType": "bool" },
-        { "name": "wasEverTouched", "type": "bool", "internalType": "bool" }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "setBondingCurveAllowed",
-      "inputs": [
-        {
-          "name": "bondingCurve",
-          "type": "address",
-          "internalType": "contract ICurve"
-        },
-        { "name": "isAllowed", "type": "bool", "internalType": "bool" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "setRouterAllowed",
-      "inputs": [
-        {
-          "name": "_router",
-          "type": "address",
-          "internalType": "contract LSSVMRouter"
-        },
-        { "name": "isAllowed", "type": "bool", "internalType": "bool" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "settingsForCollection",
-      "inputs": [
-        { "name": "", "type": "address", "internalType": "address" },
-        { "name": "", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "settingsForPair",
-      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "toggleSettingsForCollection",
-      "inputs": [
-        { "name": "settings", "type": "address", "internalType": "address" },
-        {
-          "name": "collectionAddress",
-          "type": "address",
-          "internalType": "address"
-        },
-        { "name": "enable", "type": "bool", "internalType": "bool" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "transferOwnership",
-      "inputs": [
-        { "name": "newOwner", "type": "address", "internalType": "address" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "withdrawERC20ProtocolFees",
-      "inputs": [
-        {
-          "name": "token",
-          "type": "address",
-          "internalType": "contract ERC20"
-        },
-        { "name": "amount", "type": "uint256", "internalType": "uint256" }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "withdrawETHProtocolFees",
-      "inputs": [],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "event",
-      "name": "BondingCurveStatusUpdate",
-      "inputs": [
-        {
-          "name": "bondingCurve",
-          "type": "address",
-          "indexed": true,
-          "internalType": "contract ICurve"
-        },
-        {
-          "name": "isAllowed",
-          "type": "bool",
-          "indexed": false,
-          "internalType": "bool"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "CallTargetStatusUpdate",
-      "inputs": [
-        {
-          "name": "target",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "isAllowed",
-          "type": "bool",
-          "indexed": false,
-          "internalType": "bool"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "DefaultProtocolFeeRecipientUpdate",
-      "inputs": [
-        {
-          "name": "recipientAddress",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ERC1155Deposit",
-      "inputs": [
-        {
-          "name": "poolAddress",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "id",
-          "type": "uint256",
-          "indexed": true,
-          "internalType": "uint256"
-        },
-        {
-          "name": "amount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ERC20Deposit",
-      "inputs": [
-        {
-          "name": "poolAddress",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "amount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "NFTDeposit",
-      "inputs": [
-        {
-          "name": "poolAddress",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "ids",
-          "type": "uint256[]",
-          "indexed": false,
-          "internalType": "uint256[]"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "NewERC1155Pair",
-      "inputs": [
-        {
-          "name": "poolAddress",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "initialBalance",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "NewERC721Pair",
-      "inputs": [
-        {
-          "name": "poolAddress",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "initialIds",
-          "type": "uint256[]",
-          "indexed": false,
-          "internalType": "uint256[]"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "OwnershipTransferred",
-      "inputs": [
-        {
-          "name": "user",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "newOwner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ProtocolFeeMultiplierUpdate",
-      "inputs": [
-        {
-          "name": "newMultiplier",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ProtocolFeeRecipientReferralAdded",
-      "inputs": [
-        {
-          "name": "referrerAddress",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "recipientAddress",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "RouterStatusUpdate",
-      "inputs": [
-        {
-          "name": "router",
-          "type": "address",
-          "indexed": true,
-          "internalType": "contract LSSVMRouter"
-        },
-        {
-          "name": "isAllowed",
-          "type": "bool",
-          "indexed": false,
-          "internalType": "bool"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "error",
-      "name": "LSSVMPairFactory__BondingCurveNotWhitelisted",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "LSSVMPairFactory__CannotCallRouter",
-      "inputs": []
-    },
-    { "type": "error", "name": "LSSVMPairFactory__FeeTooLarge", "inputs": [] },
-    { "type": "error", "name": "LSSVMPairFactory__InvalidPair", "inputs": [] },
-    {
-      "type": "error",
-      "name": "LSSVMPairFactory__ReentrantCall",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "LSSVMPairFactory__SettingsNotEnabledForCollection",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "LSSVMPairFactory__SettingsNotEnabledForPair",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "LSSVMPairFactory__UnauthorizedCaller",
-      "inputs": []
-    },
-    { "type": "error", "name": "LSSVMPairFactory__ZeroAddress", "inputs": [] }
-  ] as const;
+// Sierra ABI extracted from lssvm2-starknet `target/dev/lssvm_factory_LSSVMPairFactory.contract_class.json`.
+// Regenerate with the lssvm2-starknet port tooling whenever the Cairo contracts change.
+// Do not edit by hand.
+import type { Abi } from 'starknet';
+
+export const FactoryABI: Abi = [
+  {
+    "type": "impl",
+    "name": "LSSVMPairFactoryImpl",
+    "interface_name": "lssvm_interfaces::factory::ILSSVMPairFactory"
+  },
+  {
+    "type": "enum",
+    "name": "lssvm_interfaces::types::PoolType",
+    "variants": [
+      {
+        "name": "TOKEN",
+        "type": "()"
+      },
+      {
+        "name": "NFT",
+        "type": "()"
+      },
+      {
+        "name": "TRADE",
+        "type": "()"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "core::integer::u256",
+    "members": [
+      {
+        "name": "low",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "high",
+        "type": "core::integer::u128"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "lssvm_interfaces::factory::CreateERC721ERC20PairParams",
+    "members": [
+      {
+        "name": "token",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "nft",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "bonding_curve",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "asset_recipient",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "pool_type",
+        "type": "lssvm_interfaces::types::PoolType"
+      },
+      {
+        "name": "delta",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "fee",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "spot_price",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "property_checker",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "initial_nft_ids",
+        "type": "core::array::Array::<core::integer::u256>"
+      },
+      {
+        "name": "initial_token_balance",
+        "type": "core::integer::u256"
+      },
+      {
+        "name": "hook_address",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "referral_address",
+        "type": "core::starknet::contract_address::ContractAddress"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "lssvm_interfaces::factory::CreateERC1155ERC20PairParams",
+    "members": [
+      {
+        "name": "token",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "nft",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "bonding_curve",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "asset_recipient",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "pool_type",
+        "type": "lssvm_interfaces::types::PoolType"
+      },
+      {
+        "name": "delta",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "fee",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "spot_price",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "nft_id",
+        "type": "core::integer::u256"
+      },
+      {
+        "name": "initial_nft_balance",
+        "type": "core::integer::u256"
+      },
+      {
+        "name": "initial_token_balance",
+        "type": "core::integer::u256"
+      },
+      {
+        "name": "hook_address",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "referral_address",
+        "type": "core::starknet::contract_address::ContractAddress"
+      }
+    ]
+  },
+  {
+    "type": "enum",
+    "name": "core::bool",
+    "variants": [
+      {
+        "name": "False",
+        "type": "()"
+      },
+      {
+        "name": "True",
+        "type": "()"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "lssvm_interfaces::factory::RouterStatus",
+    "members": [
+      {
+        "name": "allowed",
+        "type": "core::bool"
+      },
+      {
+        "name": "was_ever_touched",
+        "type": "core::bool"
+      }
+    ]
+  },
+  {
+    "type": "enum",
+    "name": "lssvm_interfaces::types::PairNFTType",
+    "variants": [
+      {
+        "name": "ERC721",
+        "type": "()"
+      },
+      {
+        "name": "ERC1155",
+        "type": "()"
+      }
+    ]
+  },
+  {
+    "type": "interface",
+    "name": "lssvm_interfaces::factory::ILSSVMPairFactory",
+    "items": [
+      {
+        "type": "function",
+        "name": "create_pair_erc721_eth",
+        "inputs": [
+          {
+            "name": "nft",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "bonding_curve",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "asset_recipient",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "pool_type",
+            "type": "lssvm_interfaces::types::PoolType"
+          },
+          {
+            "name": "delta",
+            "type": "core::integer::u128"
+          },
+          {
+            "name": "fee",
+            "type": "core::integer::u128"
+          },
+          {
+            "name": "spot_price",
+            "type": "core::integer::u128"
+          },
+          {
+            "name": "property_checker",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "initial_nft_ids",
+            "type": "core::array::Array::<core::integer::u256>"
+          },
+          {
+            "name": "hook_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "referral_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "create_pair_erc721_erc20",
+        "inputs": [
+          {
+            "name": "params",
+            "type": "lssvm_interfaces::factory::CreateERC721ERC20PairParams"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "create_pair_erc1155_eth",
+        "inputs": [
+          {
+            "name": "nft",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "bonding_curve",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "asset_recipient",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "pool_type",
+            "type": "lssvm_interfaces::types::PoolType"
+          },
+          {
+            "name": "delta",
+            "type": "core::integer::u128"
+          },
+          {
+            "name": "fee",
+            "type": "core::integer::u128"
+          },
+          {
+            "name": "spot_price",
+            "type": "core::integer::u128"
+          },
+          {
+            "name": "nft_id",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "initial_nft_balance",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "hook_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "referral_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "create_pair_erc1155_erc20",
+        "inputs": [
+          {
+            "name": "params",
+            "type": "lssvm_interfaces::factory::CreateERC1155ERC20PairParams"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "protocol_fee_multiplier",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::integer::u128"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "default_protocol_fee_recipient",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_protocol_fee_recipient",
+        "inputs": [
+          {
+            "name": "referrer_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "protocol_fee_recipient_referral",
+        "inputs": [
+          {
+            "name": "referrer_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "bonding_curve_allowed",
+        "inputs": [
+          {
+            "name": "bonding_curve",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "call_allowed",
+        "inputs": [
+          {
+            "name": "target",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "router_status",
+        "inputs": [
+          {
+            "name": "router",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "lssvm_interfaces::factory::RouterStatus"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "is_valid_pair",
+        "inputs": [
+          {
+            "name": "pair_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_pair_nft_type",
+        "inputs": [
+          {
+            "name": "pair_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "lssvm_interfaces::types::PairNFTType"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "auth_allowed_for_token",
+        "inputs": [
+          {
+            "name": "token_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "proposed_auth_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_settings_for_pair",
+        "inputs": [
+          {
+            "name": "pair_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "(core::bool, core::integer::u64)"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "settings_for_collection",
+        "inputs": [
+          {
+            "name": "collection",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "settings",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "settings_for_pair",
+        "inputs": [
+          {
+            "name": "pair_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "toggle_settings_for_collection",
+        "inputs": [
+          {
+            "name": "settings",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "collection_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "enable",
+            "type": "core::bool"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "enable_settings_for_pair",
+        "inputs": [
+          {
+            "name": "settings",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "pair_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "disable_settings_for_pair",
+        "inputs": [
+          {
+            "name": "settings",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "pair_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "open_lock",
+        "inputs": [],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "close_lock",
+        "inputs": [],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "withdraw_erc20_protocol_fees",
+        "inputs": [
+          {
+            "name": "token",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount",
+            "type": "core::integer::u256"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "change_default_protocol_fee_recipient",
+        "inputs": [
+          {
+            "name": "default_protocol_fee_recipient",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "change_protocol_fee_multiplier",
+        "inputs": [
+          {
+            "name": "protocol_fee_multiplier",
+            "type": "core::integer::u128"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "add_protocol_fee_recipient_referral",
+        "inputs": [
+          {
+            "name": "referrer_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "recipient_address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "set_bonding_curve_allowed",
+        "inputs": [
+          {
+            "name": "bonding_curve",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "is_allowed",
+            "type": "core::bool"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "set_call_allowed",
+        "inputs": [
+          {
+            "name": "target",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "is_allowed",
+            "type": "core::bool"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "set_router_allowed",
+        "inputs": [
+          {
+            "name": "router",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "is_allowed",
+            "type": "core::bool"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "deposit_nfts",
+        "inputs": [
+          {
+            "name": "nft",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "ids",
+            "type": "core::array::Array::<core::integer::u256>"
+          },
+          {
+            "name": "recipient",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "deposit_erc20",
+        "inputs": [
+          {
+            "name": "token",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "recipient",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount",
+            "type": "core::integer::u256"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "deposit_erc1155",
+        "inputs": [
+          {
+            "name": "nft",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "id",
+            "type": "core::integer::u256"
+          },
+          {
+            "name": "recipient",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "amount",
+            "type": "core::integer::u256"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "erc721_pair_class_hash",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::class_hash::ClassHash"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "erc1155_pair_class_hash",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::class_hash::ClassHash"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "eth_token",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      }
+    ]
+  },
+  {
+    "type": "impl",
+    "name": "OwnableImpl",
+    "interface_name": "openzeppelin_interfaces::access::ownable::IOwnable"
+  },
+  {
+    "type": "interface",
+    "name": "openzeppelin_interfaces::access::ownable::IOwnable",
+    "items": [
+      {
+        "type": "function",
+        "name": "owner",
+        "inputs": [],
+        "outputs": [
+          {
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "transfer_ownership",
+        "inputs": [
+          {
+            "name": "new_owner",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "renounce_ownership",
+        "inputs": [],
+        "outputs": [],
+        "state_mutability": "external"
+      }
+    ]
+  },
+  {
+    "type": "constructor",
+    "name": "constructor",
+    "inputs": [
+      {
+        "name": "erc721_pair_class_hash",
+        "type": "core::starknet::class_hash::ClassHash"
+      },
+      {
+        "name": "erc1155_pair_class_hash",
+        "type": "core::starknet::class_hash::ClassHash"
+      },
+      {
+        "name": "eth_token",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "protocol_fee_multiplier",
+        "type": "core::integer::u128"
+      },
+      {
+        "name": "default_protocol_fee_recipient",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "owner",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      {
+        "name": "royalty_engine",
+        "type": "core::starknet::contract_address::ContractAddress"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "previous_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "new_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "previous_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "new_owner",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "openzeppelin_access::ownable::ownable::OwnableComponent::Event",
+    "kind": "enum",
+    "variants": [
+      {
+        "name": "OwnershipTransferred",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+        "kind": "nested"
+      },
+      {
+        "name": "OwnershipTransferStarted",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+        "kind": "nested"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::NewERC721Pair",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "pool_address",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "initial_ids",
+        "type": "core::array::Array::<core::integer::u256>",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::NewERC1155Pair",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "pool_address",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "initial_balance",
+        "type": "core::integer::u256",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::ERC20Deposit",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "pool_address",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "amount",
+        "type": "core::integer::u256",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::NFTDeposit",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "pool_address",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "ids",
+        "type": "core::array::Array::<core::integer::u256>",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::ERC1155Deposit",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "pool_address",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "id",
+        "type": "core::integer::u256",
+        "kind": "key"
+      },
+      {
+        "name": "amount",
+        "type": "core::integer::u256",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::DefaultProtocolFeeRecipientUpdate",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "recipient_address",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::ProtocolFeeRecipientReferralAdded",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "referrer_address",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "recipient_address",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::ProtocolFeeMultiplierUpdate",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "new_multiplier",
+        "type": "core::integer::u128",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::BondingCurveStatusUpdate",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "bonding_curve",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "is_allowed",
+        "type": "core::bool",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::CallTargetStatusUpdate",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "target",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "is_allowed",
+        "type": "core::bool",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_interfaces::factory::events::RouterStatusUpdate",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "router",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      },
+      {
+        "name": "is_allowed",
+        "type": "core::bool",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "lssvm_factory::factory::LSSVMPairFactory::Event",
+    "kind": "enum",
+    "variants": [
+      {
+        "name": "OwnableEvent",
+        "type": "openzeppelin_access::ownable::ownable::OwnableComponent::Event",
+        "kind": "flat"
+      },
+      {
+        "name": "NewERC721Pair",
+        "type": "lssvm_interfaces::factory::events::NewERC721Pair",
+        "kind": "nested"
+      },
+      {
+        "name": "NewERC1155Pair",
+        "type": "lssvm_interfaces::factory::events::NewERC1155Pair",
+        "kind": "nested"
+      },
+      {
+        "name": "ERC20Deposit",
+        "type": "lssvm_interfaces::factory::events::ERC20Deposit",
+        "kind": "nested"
+      },
+      {
+        "name": "NFTDeposit",
+        "type": "lssvm_interfaces::factory::events::NFTDeposit",
+        "kind": "nested"
+      },
+      {
+        "name": "ERC1155Deposit",
+        "type": "lssvm_interfaces::factory::events::ERC1155Deposit",
+        "kind": "nested"
+      },
+      {
+        "name": "DefaultProtocolFeeRecipientUpdate",
+        "type": "lssvm_interfaces::factory::events::DefaultProtocolFeeRecipientUpdate",
+        "kind": "nested"
+      },
+      {
+        "name": "ProtocolFeeRecipientReferralAdded",
+        "type": "lssvm_interfaces::factory::events::ProtocolFeeRecipientReferralAdded",
+        "kind": "nested"
+      },
+      {
+        "name": "ProtocolFeeMultiplierUpdate",
+        "type": "lssvm_interfaces::factory::events::ProtocolFeeMultiplierUpdate",
+        "kind": "nested"
+      },
+      {
+        "name": "BondingCurveStatusUpdate",
+        "type": "lssvm_interfaces::factory::events::BondingCurveStatusUpdate",
+        "kind": "nested"
+      },
+      {
+        "name": "CallTargetStatusUpdate",
+        "type": "lssvm_interfaces::factory::events::CallTargetStatusUpdate",
+        "kind": "nested"
+      },
+      {
+        "name": "RouterStatusUpdate",
+        "type": "lssvm_interfaces::factory::events::RouterStatusUpdate",
+        "kind": "nested"
+      }
+    ]
+  }
+];

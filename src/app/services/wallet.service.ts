@@ -7,6 +7,8 @@ import {
 } from '@starknet-io/get-starknet';
 import { constants, RpcProvider, uint256, WalletAccount } from 'starknet';
 import {
+  CHAIN_ID_BY_NUMBER,
+  CONTRACT_ADDRESSES,
   ETH_ERC20_ADDRESS,
   normalizeAddress,
   normalizeChainId,
@@ -36,14 +38,6 @@ export interface Chain {
   nativeCurrency: { name: string; symbol: string; decimals: number };
   rpcUrls: { default: { http: string[] } };
 }
-
-// TODO(starknet-port, phase 6): legacy viem client surface. The EVM contract
-// call sites (page components + nft.service) still call getPublicClient()/
-// getWalletClient() and use viem client methods on the result; until those
-// call sites are ported to starknet.js the getters always return null, so
-// the EVM paths compile unchanged but no-op at runtime.
-export type LegacyEvmPublicClient = any;
-export type LegacyEvmWalletClient = any;
 
 const SUPPORTED_CHAINS: ChainConfig[] = [
   {
@@ -351,26 +345,27 @@ export class WalletService {
   }
 
   /**
-   * @deprecated TODO(starknet-port, phase 6): legacy viem read client —
-   * always returns null. Use getProvider() instead. Kept (typed `any`) so
-   * the not-yet-ported EVM contract call sites compile and no-op at runtime.
+   * Apply devnet overrides from the deployments file (see deployments.ts):
+   * the local katana RPC URL and, if it differs from the 'KATANA' default,
+   * the actual chain id.
    */
-  getPublicClient(): LegacyEvmPublicClient {
-    return null;
+  configureDevnet(overrides: { rpcUrl?: string; chainId?: string }): void {
+    const devnet = SUPPORTED_CHAINS.find(c => c.label === 'Devnet');
+    if (!devnet) return;
+    if (overrides.rpcUrl) devnet.rpcUrl = overrides.rpcUrl;
+    if (overrides.chainId) devnet.id = normalizeChainId(overrides.chainId);
   }
 
-  /**
-   * @deprecated TODO(starknet-port, phase 6): legacy viem write client —
-   * always returns null. Use getAccount() instead. Kept (typed `any`) so
-   * the not-yet-ported EVM contract call sites compile and no-op at runtime.
-   */
-  getWalletClient(): LegacyEvmWalletClient {
-    return null;
+  /** The ERC20 the current chain treats as "ETH" (per-chain override-able). */
+  ethTokenAddress(): string {
+    const id = this.currentChainIdNum();
+    const key = id !== null ? CHAIN_ID_BY_NUMBER[id] : undefined;
+    return (key ? CONTRACT_ADDRESSES[key]?.ETH_TOKEN : undefined) ?? ETH_ERC20_ADDRESS;
   }
 
   /**
    * Starknet has no native balance — "ETH" is itself an ERC20 (the fee
-   * token). Reads balance_of(wallet) on the canonical ETH contract.
+   * token). Reads balance_of(wallet) on the chain's ETH contract.
    */
   async fetchBalance(): Promise<void> {
     const addr = this.walletAddress();
@@ -378,7 +373,7 @@ export class WalletService {
     const provider = this.getProvider();
     if (!provider) return;
     try {
-      const result = await this.callBalanceOf(provider, addr);
+      const result = await this.callBalanceOf(provider, this.ethTokenAddress(), addr);
       const wei = uint256.uint256ToBN({ low: result[0], high: result[1] });
       this.balance.set(formatEther(wei));
     } catch (error) {
@@ -387,17 +382,21 @@ export class WalletService {
     }
   }
 
-  private async callBalanceOf(provider: RpcProvider, address: string): Promise<string[]> {
+  private async callBalanceOf(
+    provider: RpcProvider,
+    token: string,
+    address: string,
+  ): Promise<string[]> {
     try {
       return await provider.callContract({
-        contractAddress: ETH_ERC20_ADDRESS,
+        contractAddress: token,
         entrypoint: 'balance_of',
         calldata: [address],
       });
     } catch {
       // Older ERC20 deployments only expose the legacy camelCase entrypoint.
       return provider.callContract({
-        contractAddress: ETH_ERC20_ADDRESS,
+        contractAddress: token,
         entrypoint: 'balanceOf',
         calldata: [address],
       });

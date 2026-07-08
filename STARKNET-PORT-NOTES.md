@@ -1,129 +1,132 @@
-# Starknet port notes — wallet layer + address utilities (phase: ABI-independent groundwork)
+# Starknet port notes
 
-Branch: `starknet`. Scope of this slice: wallet/connection layer and address/chain
-utilities only. Contract call sites, ABIs, and multicall batching are intentionally
-still EVM/viem and will be ported in a later phase ("phase 6") once the
-`lssvm2-starknet` Cairo contracts exist. Grep for `TODO(starknet-port` to find every
-deliberate leftover.
+Branch: `starknet`. Two phases so far:
 
-## What changed
+- **Phase 0 — wallet layer + address utilities** (committed): wallet/connection
+  rewritten from viem/EIP-1193 to starknet.js v7 + get-starknet v4; felt-address
+  utilities (`normalizeAddress`, `isAddressEqual`, `ZERO_ADDRESS`) replacing all
+  EVM `toLowerCase()` compares; string (felt hex) chain ids.
+- **Phase 6 — contract layer** (this change set): every contract call site
+  ported to the frozen lssvm2-starknet Cairo ABIs; viem removed entirely.
 
-### `src/app/services/wallet.service.ts` — rewritten (viem/EIP-1193 -> starknet.js + get-starknet)
+## Phase 6 — what changed
 
-- Connect/disconnect via the get-starknet modal (`@starknet-io/get-starknet` v4
-  `connect()` / `disconnect()`). The modal replaces the old "install MetaMask"
-  alert: it lists installed Starknet wallets and shows install links when none
-  are present. User-rejected connects (`USER_REFUSED_OP`) and a dismissed modal
-  both resolve `connectWallet()` to `false`, as before.
-- Silent auto-reconnect preserved: `connect({ modalMode: 'neverAsk' })` +
-  `wallet_requestAccounts` with `silent_mode: true` (replaces `eth_accounts`).
-  `disconnectWallet()` calls get-starknet `disconnect({ clearLastWallet: true })`
-  so the app doesn't silently reconnect after an explicit disconnect.
-- Wallet events: `accountsChanged` / `networkChanged` on the
-  `StarknetWindowObject` (replaces the EIP-1193 listeners). An empty
-  `accountsChanged` resets state but keeps listeners attached (wallet lock /
-  unlock), matching the old behavior.
-- `switchChain()` now uses `wallet_switchStarknetChain` with a
-  `wallet_addStarknetChain` + retry fallback (parity with the old
-  `wallet_switchEthereumChain` / error-4902 / `wallet_addEthereumChain` flow).
-- `fetchBalance()`: Starknet has no native balance — "ETH" is itself an ERC20
-  (the fee token, same address on SN_MAIN / SN_SEPOLIA / katana). Reads
-  `balance_of(wallet)` (falls back to legacy `balanceOf`) via
-  `RpcProvider.callContract` and formats the u256 to a decimal string, same
-  shape the components already `parseFloat`.
-- New Starknet-native accessors for the later phase:
-  - `getProvider(): RpcProvider | null` — reads (replacement for the viem
-    public client).
-  - `getAccount(): WalletAccount | null` — wallet-signed writes via
-    `account.execute(calls)` (replacement for the viem wallet client).
-- Supported chains are now `SN_MAIN` ("Starknet"), `SN_SEPOLIA` ("Sepolia"),
-  and a local katana devnet entry (`KATANA` chain id, `http://localhost:5050`).
+### ABIs (`src/abi/*.ts`) — regenerated from Sierra artifacts
 
-### Public API — kept, with typed-but-not-named deltas
+Extracted from `lssvm2-starknet/target/dev/*.contract_class.json` (`abi` field),
+emitted as `Abi`-typed const arrays for starknet.js `Contract`/`CallData`:
 
-All signal/method names consumed by components are unchanged: `walletAddress`,
-`isConnected`, `balance`, `currentChainIdNum`, `supportedChains`,
-`connectWallet`, `disconnectWallet`, `switchChain`, `getConnectedWallet`,
-`getCurrentChain`, `getPublicClient`, `getWalletClient`, `fetchBalance`.
+- `Factory.ts` (`FactoryABI`) — `lssvm_factory_LSSVMPairFactory`
+- `Pair721.ts` — `lssvm_pair_LSSVMPairERC721`
+- `Pair1155.ts` — `lssvm_pair_LSSVMPairERC1155` (unused by the UI; completeness)
+- `ListingBook.ts` — `lssvm_hooks_ListingBook`
+- `ERC20.ts` / `ERC721.ts` / `ERC1155.ts` — OZ snake_case interfaces extracted
+  from the workspace's OZ-based mock artifacts + hand-assembled standard
+  metadata interfaces (`name`/`symbol`/`decimals` as ByteArray/u8,
+  `token_uri`, `uri`). `ERC721` also carries a legacy camelCase `tokenURI`
+  entry used only as a runtime fallback.
+- **Deleted**: `Multicall.ts` (aggregation replaced by `Promise.all` over the
+  RPC provider) and `Pair.ts` (sudoswap v1 pair — no v1 on Starknet; the
+  `PairVersion` type remains but `detectPairVersion()` always resolves 'v2'
+  after the `factory()` read).
 
-Unavoidable type changes (Starknet chain ids are felts that overflow JS
-numbers, e.g. SN_SEPOLIA = `0x534e5f5345504f4c4941`):
+Every encode/decode path was verified offline against `CallData` with the real
+ABIs (hand-built calldata for `create_pair_erc721_eth/erc20`, both swaps,
+`withdraw_erc721`, `approve`, `set_approval_for_all` match `CallData.compile`
+exactly; quote/enum/ByteArray/array parsing verified).
 
-| Member | Before | After |
-|---|---|---|
-| `currentChainIdNum` | `signal<number \| null>` | `signal<string \| null>` (normalized chain-id hex; name kept deliberately) |
-| `ChainConfig.id` / `Chain.id` | `number` | `string` |
-| `switchChain(id)` | `number` | `string` |
-| `getCurrentChain()` | viem `Chain` | local `Chain` interface, same shape (`id`/`name`/`nativeCurrency`/`rpcUrls.default.http`) but string `id` |
-| `getPublicClient()` / `getWalletClient()` | viem `PublicClient \| null` / `WalletClient \| null` | legacy stubs, always `null`, typed `any` (see below) |
+### ABI-mapping decisions
 
-### `src/app/services/address.ts` — converted
+- **u256 <-> bigint**: reads come back from starknet.js as `bigint` (no change
+  to component signal types). Writes serialize via `u256Calldata` /
+  `u256ArrayCalldata` (`src/app/services/starknet.util.ts`) — `[low, high]`
+  limbs, arrays as `[len, ...pairs]`.
+- **Addresses**: read results are felts (bigint) — always passed through
+  `normalizeAddress()` to the canonical 66-char hex before hitting signals or
+  compares.
+- **Enums**: `PoolType`/`CurveError` decode as `CairoCustomEnum`; mapped to
+  wire indexes via variant-order tables (`TOKEN=0/NFT=1/TRADE=2`; `OK=0...`).
+  For writes, `pool_type` is sent as a single felt (0/1/2), matching the
+  Cairo serialization of unit-variant enums.
+- **Quotes**: `get_buy_nft_quote`/`get_sell_nft_quote` parse the `NFTQuote`
+  struct FIELDS (`error`, `new_spot_price`, `new_delta`, `amount`,
+  `protocol_fee`, `royalty_amount`) via `parseNftQuote()` — never tuple
+  indexes. `error != 0` renders as "quote unavailable (curve error N)".
+- **ListingBook**: `get721_listings(collection, 0, 0, 0)` — token 0 = any,
+  `end == 0` = all; result felts normalized to hex pair addresses.
 
-- `ZERO_ADDRESS` — canonical 66-char felt zero address.
-- `normalizeAddress()` — pad-to-66-char lowercase canonical felt form (wraps
-  starknet.js `validateAndParseAddress`).
-- `isAddressEqual()` — normalized-felt equality; replaces every
-  `a.toLowerCase() === b.toLowerCase()` EVM compare.
-- `normalizeChainId()` + `STARKNET_CHAIN_ID` (SN_MAIN / SN_SEPOLIA /
-  SN_DEVNET='KATANA') + `ETH_ERC20_ADDRESS`.
-- `CHAIN_ID_BY_NUMBER` is now keyed by normalized chain-id hex **strings**
-  (name kept so unported components that index into it don't change; rename to
-  `CHAIN_ID_BY_CHAIN_ID` in phase 6).
-- `CHAIN_ID` gained `STARKNET` / `SEPOLIA` / `DEVNET` labels (with empty
-  `CONTRACT_ADDRESSES` entries to fill once contracts deploy). The legacy
-  `YOMINET` / `ETHEREUM` labels, addresses, and slugs are kept **only** so the
-  unported EVM call sites compile; the `mainnet` URL slug now maps to
-  `STARKNET` (was `ETHEREUM`).
+### Reads — RPC batching
 
-### Address compares fixed (no `toLowerCase()` address comparison remains in `src/`)
+All Multicall-contract aggregation is gone. Independent reads are
+`starknet.js Contract.call` batched with `Promise.all` (browse listings +
+per-pair ids/quotes, manage pair snapshot, home token/NFT metadata, pool page
+field reads). Failure isolation per read is preserved (pool page
+`Promise.allSettled`, per-pair try/catch in browse).
 
-- `src/app/services/nft.service.ts` — factory-address matching in
-  `detectPairVersion()` -> `isAddressEqual`.
-- `src/app/manage/manage.component.ts` — pool-owner check -> `isAddressEqual`.
-- `src/app/pool/pool.component.ts` — token-vs-zero-address check ->
-  `isAddressEqual` + shared `ZERO_ADDRESS` (local 20-byte constant removed).
+### Writes — single-transaction batching (`account.execute([...calls])`)
 
-Remaining `toLowerCase()` hits are URL-slug/label lowering (route `:label`
-segments, `networkLabel()`, the `wallet_addStarknetChain` `id` field) — not
-address comparisons.
+The Starknet UX win over EVM: approvals ride in the same transaction.
 
-## Components touched, and why
+- **Buy** (`nft.service`): `[ethToken/erc20.approve(pair, price),
+  pair.swap_token_for_specific_nfts(ids, price, wallet, false, 0)]` — the
+  pair pulls its quote token (the configured ETH ERC20 for "ETH" pools) via
+  `transfer_from`; approve is exact-amount.
+- **Sell** (`nft.service`): `[nft.set_approval_for_all(pair, true)]` (only if
+  missing) + `pair.swap_nfts_for_token(ids, minOut, wallet, false, 0)`.
+- **Create pool** (`home`): missing NFT/ERC20 approvals +
+  `factory.create_pair_erc721_eth` (or `create_pair_erc721_erc20` with the
+  params struct flattened in member order) in one transaction. PoolType NFT=1.
+- **Withdraw** (`manage`): `pair.withdraw_erc721(nft, ids)`.
+- Tx lifecycle unchanged (`transactionPending$` etc.); hashes are now plain
+  strings; confirmation via `provider.waitForTransaction`.
 
-Only forced, compile-level touches — no logic ported:
+### Chain/env config
 
-- `app.component.ts`, `home.component.ts` — `switchChain(id: number)` param
-  annotation -> `string` (chain ids are felt hex strings now).
-- `manage.component.ts`, `pool.component.ts` — the address-compare fixes above.
+- `src/app/services/deployments.ts` + an `provideAppInitializer` hook in
+  `app.config.ts`: fetches `deployments/katana.json` (URL configurable via
+  `DEPLOYMENTS_URL`; copy `lssvm2-starknet/tools/deploy/deployments/katana.json`
+  into `public/deployments/` for local dev) and applies `contracts.*` to the
+  DEVNET registry entry plus `rpcUrl`/`chainId` to the Devnet chain config.
+  Absent file => placeholder (empty) devnet addresses; app still builds/runs,
+  reads fail gracefully. Curve keys accept `linear`/`linearCurve`/`LinearCurve`
+  spellings (exact key names TBD until the file lands).
+- `address.ts`: legacy YOMINET/ETHEREUM registry entries removed (their EVM
+  call sites are gone); `ETH_TOKEN` per-chain key added. Component fallbacks
+  moved YOMINET->DEVNET / ETHEREUM->STARKNET.
+- `wallet.service.ts`: phase-0 `getPublicClient()`/`getWalletClient()` null
+  shims removed — everything uses `getProvider()`/`getAccount()`. Added
+  `configureDevnet()` (deployments hook) and `ethTokenAddress()`.
 
-## Shims (compile-level only, all marked `TODO(starknet-port, phase 6)`)
+### Behavior notes
 
-- `WalletService.getPublicClient()` / `getWalletClient()` always return `null`,
-  typed `any` (`LegacyEvmPublicClient` / `LegacyEvmWalletClient`). Every EVM
-  contract call site already null-checks the client, so those paths compile
-  unchanged and no-op at runtime.
-- Legacy EVM entries in `address.ts` (`YOMINET` / `ETHEREUM` labels, addresses,
-  slugs).
+- "ETH" pools on Starknet price in the ETH ERC20, so `pair.token()` is never
+  zero — the pool page displays them as ERC20 pools whose symbol is ETH.
+- `manage` metadata uses `token_uri` with a legacy `tokenURI` fallback;
+  base64 `data:application/json` parsing unchanged.
+- The kami page now keys off whichever chain has a `KAMI` address configured
+  (none yet) instead of hard-coded Yominet.
 
-## Intentionally still EVM (ABI-dependent, later phase)
+### Templates touched (text/condition only)
 
-- `src/abi/*` — viem-format ABI arrays (regenerate from Cairo ABIs).
-- `src/app/services/nft.service.ts` — buy/sell/approval flows
-  (`writeContract`, `waitForTransactionReceipt`, EVM `ZERO_ADDRESS` call args).
-- `src/app/home/home.component.ts`, `browse.component.ts`,
-  `manage.component.ts`, `pool.component.ts`, `kami.component.ts` — direct
-  `readContract` / `writeContract` / manual `Multicall` +
-  `encodeFunctionData` / `decodeFunctionResult` batching.
-- `src/app/services/format.util.ts` — imports viem `formatUnits` (harmless).
-- The `viem` dependency stays in `package.json` until the above are ported,
-  then remove it.
+- `home.component.html`: creation gate `currentChainId !== 'ETHEREUM'` ->
+  `creationSupported` (factory configured on current chain) — forced by the
+  removal of the ETHEREUM label.
+- `pool.component.html`: sell help text updated (approval is batched into the
+  swap transaction now).
 
-## Dependencies
+## Removed dependencies
 
-Added: `starknet` 7.6.4, `@starknet-io/get-starknet` 4.0.8,
-`@starknet-io/get-starknet-core` 4.0.8. Only `package-lock.json` was updated
-(`bun.lock` not regenerated).
+`viem` fully removed from `package.json` and `src/` (only explanatory comments
+mention it). `formatUnits` is now local (`format.util.ts`).
 
-`npm run build` is green; the initial bundle grew to ~928 kB raw
-(~230 kB transfer) from starknet.js, which exceeds the 500 kB budget
-*warning* (the error budget is 100 MB, so builds still pass). Revisit bundle
-size when the viem call sites are removed in phase 6.
+## What remains (follow-up integration task)
+
+- Manual validation against a live katana devnet (wallet connect, listing
+  creation, browse/manage/pool reads, buy/sell/withdraw) once
+  `deployments/katana.json` is produced — everything past `CallData`
+  encode/decode verification is untested against a node.
+- `VeryFastRouter` is deployed but not used by this UI (no ABI file emitted).
+- ERC1155 flows: ABI + factory entrypoints exist; no UI.
+- Public-network (SN_MAIN/SN_SEPOLIA) contract addresses once deployed.
+- Bundle is ~821 kB raw (budget *warning* only); consider lazy-loading
+  starknet.js if it matters.

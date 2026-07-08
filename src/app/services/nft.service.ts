@@ -1,11 +1,11 @@
 import { Injectable } from '@angular/core';
 import { Subject, BehaviorSubject } from 'rxjs';
+import { Call, Contract } from 'starknet';
 import { WalletService } from './wallet.service';
 import { Pair721 } from '../../abi/Pair721';
-import { Pair } from '../../abi/Pair';
 import { ERC721 } from '../../abi/ERC721';
-import { PublicClient, WalletClient, Hash } from 'viem';
-import { CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, isAddressEqual } from './address';
+import { CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, isAddressEqual, normalizeAddress } from './address';
+import { boolCalldata, u256ArrayCalldata, u256Calldata } from './starknet.util';
 
 export type PairVersion = 'v1' | 'v2';
 
@@ -33,12 +33,10 @@ export interface SellNFTParams {
 
 export interface TransactionResult {
   status: TransactionStatus;
-  hash?: Hash;
+  hash?: string;
   error?: Error;
   pairAddress?: string;
 }
-
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 
 @Injectable({
   providedIn: 'root'
@@ -46,8 +44,8 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 export class NFTService {
   private transactionStatus = new BehaviorSubject<TransactionStatus>(TransactionStatus.IDLE);
   private transactionStarted = new Subject<{ pairAddress: string }>();
-  private transactionPending = new Subject<Hash>();
-  private transactionSuccess = new Subject<Hash>();
+  private transactionPending = new Subject<string>();
+  private transactionSuccess = new Subject<string>();
   private transactionError = new Subject<Error>();
   private transactionComplete = new Subject<TransactionResult>();
 
@@ -63,16 +61,15 @@ export class NFTService {
   public transactionComplete$ = this.transactionComplete.asObservable();
 
   /**
-   * Detects whether a pair contract is a v1 or v2 sudoswap pair by reading
-   * its `factory()` address and matching it against the configured factory
-   * addresses for the connected chain.
-   *
-   * Falls back to v2 if no match — most chains in this app are v2-only.
+   * Detects the pair variant by reading its `factory()` address and matching
+   * it against the configured factory addresses for the connected chain.
+   * The Starknet deployment is v2(-hooks)-only, so anything that doesn't
+   * match a legacy v1 factory resolves to 'v2'.
    */
   async detectPairVersion(pairAddress: string): Promise<PairVersion> {
-    const publicClient = this.walletService.getPublicClient();
+    const provider = this.walletService.getProvider();
     const chain = this.walletService.getCurrentChain();
-    if (!publicClient || !chain) return 'v2';
+    if (!provider || !chain) return 'v2';
 
     const chainKey = CHAIN_ID_BY_NUMBER[chain.id];
     if (!chainKey) return 'v2';
@@ -80,11 +77,8 @@ export class NFTService {
 
     let factoryAddr: string;
     try {
-      factoryAddr = await publicClient.readContract({
-        address: pairAddress as `0x${string}`,
-        abi: Pair721,
-        functionName: 'factory',
-      } as any) as string;
+      const pair = new Contract(Pair721, pairAddress, provider);
+      factoryAddr = normalizeAddress(await pair.call('factory', []) as bigint);
     } catch (e) {
       console.warn('Could not read pair factory(), defaulting to v2', e);
       return 'v2';
@@ -96,6 +90,12 @@ export class NFTService {
     return 'v2';
   }
 
+  /**
+   * Buy specific NFTs from a pair. On Starknet the pair pulls the quote
+   * token (the configured ETH ERC20 for "ETH" pools) via transfer_from, so
+   * the exact-amount ERC20 approve and the swap are batched into ONE wallet
+   * transaction via account.execute — no separate approval transaction.
+   */
   async buyNFT(params: BuyNFTParams): Promise<TransactionResult> {
     try {
       this.transactionStatus.next(TransactionStatus.PENDING);
@@ -106,33 +106,39 @@ export class NFTService {
         return this.fail(new Error('No NFTs available in this listing'), params.pairAddress);
       }
 
-      const walletClient = this.walletService.getWalletClient();
+      const account = this.walletService.getAccount();
+      const provider = this.walletService.getProvider();
       const walletAddress = this.walletService.walletAddress();
-      if (!walletClient) return this.fail(new Error('No wallet client available'), params.pairAddress);
+      if (!account) return this.fail(new Error('No wallet account available'), params.pairAddress);
+      if (!provider) return this.fail(new Error('No provider available'), params.pairAddress);
       if (!walletAddress) return this.fail(new Error('No wallet address available'), params.pairAddress);
 
-      const version = params.pairVersion ?? await this.detectPairVersion(params.pairAddress);
-      const abi = version === 'v1' ? Pair : Pair721;
+      // The token the pair prices in (the configured ETH ERC20 for ETH pairs).
+      const pair = new Contract(Pair721, params.pairAddress, provider);
+      const tokenAddress = normalizeAddress(await pair.call('token', []) as bigint);
 
-      const hash = await walletClient.writeContract({
-        address: params.pairAddress as `0x${string}`,
-        abi: abi as any,
-        functionName: 'swapTokenForSpecificNFTs',
-        args: [
-          [...params.nftIds],
-          params.price,
-          walletAddress as `0x${string}`,
-          false,
-          ZERO_ADDRESS
-        ],
-        value: params.price,
-        chain: this.walletService.getCurrentChain(),
-        account: walletAddress as `0x${string}`
-      });
+      const calls: Call[] = [
+        {
+          contractAddress: tokenAddress,
+          entrypoint: 'approve',
+          calldata: [params.pairAddress, ...u256Calldata(params.price)],
+        },
+        {
+          contractAddress: params.pairAddress,
+          entrypoint: 'swap_token_for_specific_nfts',
+          calldata: [
+            ...u256ArrayCalldata(params.nftIds),
+            ...u256Calldata(params.price), // max_expected_token_input
+            walletAddress, // nft_recipient
+            boolCalldata(false), // is_router
+            '0', // router_caller
+          ],
+        },
+      ];
 
+      const { transaction_hash: hash } = await account.execute(calls);
       this.transactionPending.next(hash);
-      const publicClient = this.walletService.getPublicClient();
-      if (publicClient) await this.waitForTransaction(publicClient, hash);
+      await provider.waitForTransaction(hash);
       await this.walletService.fetchBalance();
 
       return this.succeed(hash, params.pairAddress);
@@ -142,10 +148,9 @@ export class NFTService {
   }
 
   /**
-   * Sell NFTs into a pair pool. Requires the pair to have setApprovalForAll
-   * on the NFT contract; this method checks and requests approval first if
-   * needed. v1 pairs use the same swapNFTsForToken signature as v2 (no
-   * propertyCheckerParams), so we just dispatch on ABI.
+   * Sell NFTs into a pair pool. The pair needs set_approval_for_all on the
+   * NFT contract; when it's missing, the approval and the swap are batched
+   * into ONE wallet transaction via account.execute.
    */
   async sellNFTs(params: SellNFTParams): Promise<TransactionResult> {
     try {
@@ -157,53 +162,40 @@ export class NFTService {
         return this.fail(new Error('No NFT IDs provided to sell'), params.pairAddress);
       }
 
-      const walletClient = this.walletService.getWalletClient();
-      const publicClient = this.walletService.getPublicClient();
+      const account = this.walletService.getAccount();
+      const provider = this.walletService.getProvider();
       const walletAddress = this.walletService.walletAddress();
-      if (!walletClient) return this.fail(new Error('No wallet client available'), params.pairAddress);
-      if (!publicClient) return this.fail(new Error('No public client available'), params.pairAddress);
+      if (!account) return this.fail(new Error('No wallet account available'), params.pairAddress);
+      if (!provider) return this.fail(new Error('No provider available'), params.pairAddress);
       if (!walletAddress) return this.fail(new Error('No wallet address available'), params.pairAddress);
 
-      // Check setApprovalForAll on the NFT contract for the pair.
-      const isApproved = await publicClient.readContract({
-        address: params.nftContract as `0x${string}`,
-        abi: ERC721,
-        functionName: 'isApprovedForAll',
-        args: [walletAddress as `0x${string}`, params.pairAddress as `0x${string}`]
-      }) as boolean;
+      // Check set_approval_for_all on the NFT contract for the pair.
+      const nft = new Contract(ERC721, params.nftContract, provider);
+      const isApproved = await nft.call('is_approved_for_all', [walletAddress, params.pairAddress]) as boolean;
 
+      const calls: Call[] = [];
       if (!isApproved) {
-        const approveHash = await walletClient.writeContract({
-          address: params.nftContract as `0x${string}`,
-          abi: ERC721,
-          functionName: 'setApprovalForAll',
-          args: [params.pairAddress as `0x${string}`, true],
-          chain: this.walletService.getCurrentChain(),
-          account: walletAddress as `0x${string}`
+        calls.push({
+          contractAddress: params.nftContract,
+          entrypoint: 'set_approval_for_all',
+          calldata: [params.pairAddress, boolCalldata(true)],
         });
-        await this.waitForTransaction(publicClient, approveHash);
       }
-
-      const version = params.pairVersion ?? await this.detectPairVersion(params.pairAddress);
-      const abi = version === 'v1' ? Pair : Pair721;
-
-      const hash = await walletClient.writeContract({
-        address: params.pairAddress as `0x${string}`,
-        abi: abi as any,
-        functionName: 'swapNFTsForToken',
-        args: [
-          [...params.nftIds],
-          params.minOutput,
-          walletAddress as `0x${string}`,
-          false,
-          ZERO_ADDRESS
+      calls.push({
+        contractAddress: params.pairAddress,
+        entrypoint: 'swap_nfts_for_token',
+        calldata: [
+          ...u256ArrayCalldata(params.nftIds),
+          ...u256Calldata(params.minOutput), // min_expected_token_output
+          walletAddress, // token_recipient
+          boolCalldata(false), // is_router
+          '0', // router_caller
         ],
-        chain: this.walletService.getCurrentChain(),
-        account: walletAddress as `0x${string}`
       });
 
+      const { transaction_hash: hash } = await account.execute(calls);
       this.transactionPending.next(hash);
-      await this.waitForTransaction(publicClient, hash);
+      await provider.waitForTransaction(hash);
       await this.walletService.fetchBalance();
 
       return this.succeed(hash, params.pairAddress);
@@ -212,11 +204,7 @@ export class NFTService {
     }
   }
 
-  private async waitForTransaction(publicClient: PublicClient, hash: Hash): Promise<void> {
-    await publicClient.waitForTransactionReceipt({ hash });
-  }
-
-  private succeed(hash: Hash, pairAddress: string): TransactionResult {
+  private succeed(hash: string, pairAddress: string): TransactionResult {
     this.transactionSuccess.next(hash);
     const result: TransactionResult = { status: TransactionStatus.SUCCESS, hash, pairAddress };
     this.transactionComplete.next(result);

@@ -2,19 +2,16 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Call, Contract } from 'starknet';
 import { WalletService } from '../services/wallet.service';
 import { ERC721 } from '../../abi/ERC721';
 import { ERC20 } from '../../abi/ERC20';
-import { CHAIN_ID, CONTRACT_ADDRESSES, ChainIdType, CHAIN_ID_BY_NUMBER } from '../services/address';
-import { FactoryABI } from '../../abi/Factory';
-import { Multicall } from '../../abi/Multicall';
-import { formatUnits, encodeFunctionData, decodeFunctionResult } from 'viem';
+import { CHAIN_ID, CONTRACT_ADDRESSES, ChainIdType, CHAIN_ID_BY_NUMBER, ZERO_ADDRESS } from '../services/address';
+import { boolCalldata, u256ArrayCalldata, u256Calldata } from '../services/starknet.util';
+import { formatUnits } from '../services/format.util';
 
-// Define the type for Multicall calls
-type MulticallCall = {
-  target: `0x${string}`;
-  callData: `0x${string}`;
-};
+/** PoolType wire value (TOKEN=0, NFT=1, TRADE=2) used when creating listings. */
+const POOL_TYPE_NFT = '1';
 
 @Component({
   selector: 'app-home',
@@ -30,7 +27,7 @@ export class HomeComponent {
   // Form properties
   nftContractAddress: string = '';
   nftIds: string = ''; // Comma-separated list of IDs
-  tokenContractAddress: string = ''; // Default to empty for native token
+  tokenContractAddress: string = ''; // Default to empty for the chain's ETH token
   startingPrice: string = '';
 
   // Pool lookup form
@@ -38,8 +35,9 @@ export class HomeComponent {
 
   networkLabel(): string {
     switch (this.currentChainId) {
-      case CHAIN_ID.YOMINET: return 'Yominet';
-      case CHAIN_ID.ETHEREUM: return 'Ethereum';
+      case CHAIN_ID.STARKNET: return 'Starknet';
+      case CHAIN_ID.SEPOLIA: return 'Sepolia';
+      case CHAIN_ID.DEVNET: return 'Devnet';
       default: return 'Unknown';
     }
   }
@@ -62,8 +60,13 @@ export class HomeComponent {
 
   get currentChainId(): ChainIdType {
     const chain = this.walletService.getCurrentChain();
-    if (!chain) return CHAIN_ID.YOMINET;
-    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.YOMINET;
+    if (!chain) return CHAIN_ID.DEVNET;
+    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.DEVNET;
+  }
+
+  /** Pool creation needs the pair factory deployed on the current chain. */
+  get creationSupported(): boolean {
+    return !!CONTRACT_ADDRESSES[this.currentChainId].PAIR_FACTORY_V2_HOOKS;
   }
 
   // UI state
@@ -113,39 +116,38 @@ export class HomeComponent {
     await this.walletService.fetchBalance();
   }
 
+  /**
+   * Create a listing. Any missing approvals (NFT set_approval_for_all for
+   * the factory, ERC20 allowance for the initial token balance) are batched
+   * together with the create_pair call into ONE wallet transaction via
+   * account.execute.
+   */
   async createListing(): Promise<void> {
     try {
-      // Check if the NFT contract is approved for the Pair Factory
       await this.checkNFTApproval();
-
-      if (!this.isApproved()) {
-        // If not approved, we need to request approval
-        await this.setNFTApproval();
-      }
-
-      // If using an ERC20 token, check if it's approved
       if (this.tokenContractAddress) {
         await this.checkERC20Approval();
-
-        if (!this.isTokenApproved()) {
-          // If not approved, we need to request approval
-          await this.setERC20Approval();
-        }
       }
 
-      // If we're approved, proceed with creating the listing
-      if (this.isApproved() && (!this.tokenContractAddress || this.isTokenApproved())) {
-        // Log the form values
-        console.log('Creating listing with:', {
-          nftContractAddress: this.nftContractAddress,
-          nftIds: this.nftIds.split(',').map(id => id.trim()),
-          tokenContractAddress: this.tokenContractAddress || 'Native Token',
-          startingPrice: this.startingPrice
-        });
-
-        // Create the pool
-        await this.createPool();
+      const approvalCalls: Call[] = [];
+      if (!this.isApproved()) {
+        approvalCalls.push(this.buildNFTApprovalCall());
       }
+      if (this.tokenContractAddress && !this.isTokenApproved()) {
+        approvalCalls.push(this.buildERC20ApprovalCall());
+      }
+
+      // Log the form values
+      console.log('Creating listing with:', {
+        nftContractAddress: this.nftContractAddress,
+        nftIds: this.nftIds.split(',').map(id => id.trim()),
+        tokenContractAddress: this.tokenContractAddress || 'ETH token',
+        startingPrice: this.startingPrice,
+        batchedApprovals: approvalCalls.length
+      });
+
+      // Create the pool (approvals + create in a single transaction)
+      await this.createPool(approvalCalls);
     } catch (error) {
       console.error('Error creating listing:', error);
       this.errorMessage.set(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -153,16 +155,16 @@ export class HomeComponent {
   }
 
   /**
-   * Check if the NFT contract is approved for the Pair Factory
+   * Check if the NFT collection has set_approval_for_all for the Pair Factory
    */
   private async checkNFTApproval(): Promise<void> {
     this.isCheckingApproval.set(true);
     this.isApproved.set(false);
 
     try {
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        throw new Error('No public client available');
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        throw new Error('No provider available');
       }
 
       const walletAddress = this.walletService.walletAddress();
@@ -170,44 +172,10 @@ export class HomeComponent {
         throw new Error('Wallet not connected');
       }
 
-      // Get the Pair Factory address from our constants for the current chain
-      const pairFactoryAddress = CONTRACT_ADDRESSES[this.currentChainId].PAIR_FACTORY_V2_HOOKS;
+      const pairFactoryAddress = this.requireAddress('PAIR_FACTORY_V2_HOOKS');
 
-      // Get the Multicall contract address for the current chain
-      const multicallAddress = CONTRACT_ADDRESSES[this.currentChainId].MULTICALL as `0x${string}`;
-
-      // Prepare the call for Multicall
-      const isApprovedCallData = encodeFunctionData({
-        abi: ERC721,
-        functionName: 'isApprovedForAll',
-        args: [walletAddress as `0x${string}`, pairFactoryAddress as `0x${string}`]
-      });
-
-      // Create the calls array for Multicall
-      const calls: MulticallCall[] = [
-        {
-          target: this.nftContractAddress as `0x${string}`,
-          callData: isApprovedCallData
-        }
-      ];
-
-      // Execute the Multicall
-      const result = await publicClient.readContract({
-        address: multicallAddress,
-        abi: Multicall,
-        functionName: 'aggregate' as any,
-        args: [calls as any]
-      }) as unknown;
-
-      // Extract the return data from the result
-      const [, returnData] = result as [bigint, `0x${string}`[]];
-
-      // Decode the result
-      const isApproved = decodeFunctionResult({
-        abi: ERC721,
-        functionName: 'isApprovedForAll',
-        data: returnData[0]
-      });
+      const nft = new Contract(ERC721, this.nftContractAddress, provider);
+      const isApproved = await nft.call('is_approved_for_all', [walletAddress, pairFactoryAddress]) as boolean;
 
       this.isApproved.set(!!isApproved);
     } catch (error) {
@@ -218,33 +186,14 @@ export class HomeComponent {
     }
   }
 
-  /**
-   * Request approval for the NFT contract
-   */
-  private async setNFTApproval(): Promise<void> {
-    // Use the wallet service and viem to call setApprovalForAll on the NFT contract
-    const walletClient = this.walletService.getWalletClient();
-    if (!walletClient) {
-      throw new Error('No wallet client available');
-    }
-
-    const walletAddress = this.walletService.walletAddress();
-
-    // Get the Pair Factory address from our constants for the current chain
-    const pairFactoryAddress = CONTRACT_ADDRESSES[this.currentChainId].PAIR_FACTORY_V2_HOOKS;
-
-    // Call setApprovalForAll on the NFT contract
-    // Get the current chain
-    const chain = this.walletService.getCurrentChain();
-
-    await walletClient.writeContract({
-      address: this.nftContractAddress as `0x${string}`,
-      abi: ERC721,
-      functionName: 'setApprovalForAll',
-      args: [pairFactoryAddress as `0x${string}`, true],
-      chain,
-      account: walletAddress as `0x${string}`
-    });
+  /** set_approval_for_all(factory, true) on the NFT collection. */
+  private buildNFTApprovalCall(): Call {
+    const pairFactoryAddress = this.requireAddress('PAIR_FACTORY_V2_HOOKS');
+    return {
+      contractAddress: this.nftContractAddress,
+      entrypoint: 'set_approval_for_all',
+      calldata: [pairFactoryAddress, boolCalldata(true)],
+    };
   }
 
   /**
@@ -263,9 +212,9 @@ export class HomeComponent {
     this.errorMessage.set('');
 
     try {
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        throw new Error('No public client available');
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        throw new Error('No provider available');
       }
 
       const walletAddress = this.walletService.walletAddress();
@@ -273,74 +222,16 @@ export class HomeComponent {
         throw new Error('Wallet not connected');
       }
 
-      // Get the Multicall contract address for the current chain
-      const multicallAddress = CONTRACT_ADDRESSES[this.currentChainId].MULTICALL as `0x${string}`;
+      // Batch the independent reads over the RPC provider.
+      const nft = new Contract(ERC721, this.nftContractAddress, provider);
+      const [name, symbol, balance] = await Promise.all([
+        nft.call('name', []) as Promise<string>,
+        nft.call('symbol', []) as Promise<string>,
+        nft.call('balance_of', [walletAddress]) as Promise<bigint>,
+      ]);
 
-      // Prepare the calls for Multicall
-      const nameCallData = encodeFunctionData({
-        abi: ERC721,
-        functionName: 'name'
-      });
-
-      const symbolCallData = encodeFunctionData({
-        abi: ERC721,
-        functionName: 'symbol'
-      });
-
-      const balanceOfCallData = encodeFunctionData({
-        abi: ERC721,
-        functionName: 'balanceOf',
-        args: [walletAddress as `0x${string}`]
-      });
-
-      // Create the calls array for Multicall
-      const calls: MulticallCall[] = [
-        {
-          target: this.nftContractAddress as `0x${string}`,
-          callData: nameCallData
-        },
-        {
-          target: this.nftContractAddress as `0x${string}`,
-          callData: symbolCallData
-        },
-        {
-          target: this.nftContractAddress as `0x${string}`,
-          callData: balanceOfCallData
-        }
-      ];
-
-      // Execute the Multicall
-      // First cast to unknown, then to the expected return type to avoid TypeScript errors
-      const result = await publicClient.readContract({
-        address: multicallAddress,
-        abi: Multicall,
-        functionName: 'aggregate' as any,
-        args: [calls as any]
-      }) as unknown;
-
-      // Extract the return data from the result
-      const [, returnData] = result as [bigint, `0x${string}`[]];
-
-      // Decode the results
-      const name = decodeFunctionResult({
-        abi: ERC721,
-        functionName: 'name',
-        data: returnData[0]
-      });
-      this.nftName.set(name as string);
-
-      const symbol = decodeFunctionResult({
-        abi: ERC721,
-        functionName: 'symbol',
-        data: returnData[1]
-      });
-      this.nftSymbol.set(symbol as string);
-
-      const balance = decodeFunctionResult({
-        abi: ERC721,
-        functionName: 'balanceOf',
-        data: returnData[2]
-      });
+      this.nftName.set(name);
+      this.nftSymbol.set(symbol);
       this.nftBalance.set(Number(balance));
 
       // Check NFT approval status
@@ -372,9 +263,9 @@ export class HomeComponent {
     this.errorMessage.set('');
 
     try {
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        throw new Error('No public client available');
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        throw new Error('No provider available');
       }
 
       const walletAddress = this.walletService.walletAddress();
@@ -382,90 +273,19 @@ export class HomeComponent {
         throw new Error('Wallet not connected');
       }
 
-      // Get the Multicall contract address for the current chain
-      const multicallAddress = CONTRACT_ADDRESSES[this.currentChainId].MULTICALL as `0x${string}`;
+      // Batch the independent reads over the RPC provider.
+      const token = new Contract(ERC20, this.tokenContractAddress, provider);
+      const [name, symbol, decimals, balance] = await Promise.all([
+        token.call('name', []) as Promise<string>,
+        token.call('symbol', []) as Promise<string>,
+        token.call('decimals', []) as Promise<bigint>,
+        token.call('balance_of', [walletAddress]) as Promise<bigint>,
+      ]);
 
-      // Prepare the calls for Multicall
-      const nameCallData = encodeFunctionData({
-        abi: ERC20,
-        functionName: 'name'
-      });
-
-      const symbolCallData = encodeFunctionData({
-        abi: ERC20,
-        functionName: 'symbol'
-      });
-
-      const decimalsCallData = encodeFunctionData({
-        abi: ERC20,
-        functionName: 'decimals'
-      });
-
-      const balanceOfCallData = encodeFunctionData({
-        abi: ERC20,
-        functionName: 'balanceOf',
-        args: [walletAddress as `0x${string}`]
-      });
-
-      // Create the calls array for Multicall
-      const calls: MulticallCall[] = [
-        {
-          target: this.tokenContractAddress as `0x${string}`,
-          callData: nameCallData
-        },
-        {
-          target: this.tokenContractAddress as `0x${string}`,
-          callData: symbolCallData
-        },
-        {
-          target: this.tokenContractAddress as `0x${string}`,
-          callData: decimalsCallData
-        },
-        {
-          target: this.tokenContractAddress as `0x${string}`,
-          callData: balanceOfCallData
-        }
-      ];
-
-      // Execute the Multicall
-      const result = await publicClient.readContract({
-        address: multicallAddress,
-        abi: Multicall,
-        functionName: 'aggregate' as any,
-        args: [calls as any]
-      }) as unknown;
-
-      // Extract the return data from the result
-      const [, returnData] = result as [bigint, `0x${string}`[]];
-
-      // Decode the results
-      const name = decodeFunctionResult({
-        abi: ERC20,
-        functionName: 'name',
-        data: returnData[0]
-      });
-      this.tokenName.set(name as string);
-
-      const symbol = decodeFunctionResult({
-        abi: ERC20,
-        functionName: 'symbol',
-        data: returnData[1]
-      });
-      this.tokenSymbol.set(symbol as string);
-
-      const decimals = decodeFunctionResult({
-        abi: ERC20,
-        functionName: 'decimals',
-        data: returnData[2]
-      });
+      this.tokenName.set(name);
+      this.tokenSymbol.set(symbol);
       this.tokenDecimals.set(Number(decimals));
-
-      const balance = decodeFunctionResult({
-        abi: ERC20,
-        functionName: 'balanceOf',
-        data: returnData[3]
-      });
-      this.tokenBalance.set(formatUnits(balance as bigint, Number(decimals)));
+      this.tokenBalance.set(formatUnits(balance, Number(decimals)));
 
       // Check token approval
       await this.checkERC20Approval();
@@ -484,9 +304,9 @@ export class HomeComponent {
     if (!this.tokenContractAddress) return;
 
     try {
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        throw new Error('No public client available');
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        throw new Error('No provider available');
       }
 
       const walletAddress = this.walletService.walletAddress();
@@ -494,55 +314,20 @@ export class HomeComponent {
         throw new Error('Wallet not connected');
       }
 
-      // Get the Pair Factory address from our constants for the current chain
-      const pairFactoryAddress = CONTRACT_ADDRESSES[this.currentChainId].PAIR_FACTORY_V2_HOOKS;
+      const pairFactoryAddress = this.requireAddress('PAIR_FACTORY_V2_HOOKS');
 
-      // Get the Multicall contract address for the current chain
-      const multicallAddress = CONTRACT_ADDRESSES[this.currentChainId].MULTICALL as `0x${string}`;
-
-      // Prepare the call for Multicall
-      const allowanceCallData = encodeFunctionData({
-        abi: ERC20,
-        functionName: 'allowance',
-        args: [walletAddress as `0x${string}`, pairFactoryAddress as `0x${string}`]
-      });
-
-      // Create the calls array for Multicall
-      const calls: MulticallCall[] = [
-        {
-          target: this.tokenContractAddress as `0x${string}`,
-          callData: allowanceCallData
-        }
-      ];
-
-      // Execute the Multicall
-      const result = await publicClient.readContract({
-        address: multicallAddress,
-        abi: Multicall,
-        functionName: 'aggregate' as any,
-        args: [calls as any]
-      }) as unknown;
-
-      // Extract the return data from the result
-      const [, returnData] = result as [bigint, `0x${string}`[]];
-
-      // Decode the result
-      const allowance = decodeFunctionResult({
-        abi: ERC20,
-        functionName: 'allowance',
-        data: returnData[0]
-      });
+      const token = new Contract(ERC20, this.tokenContractAddress, provider);
+      const allowance = await token.call('allowance', [walletAddress, pairFactoryAddress]) as bigint;
 
       // Store the raw allowance value
-      const allowanceBigInt = allowance as bigint;
-      this.tokenAllowanceRaw.set(allowanceBigInt);
+      this.tokenAllowanceRaw.set(allowance);
 
       // Format the allowance for display
-      this.tokenAllowance.set(formatUnits(allowanceBigInt, this.tokenDecimals()));
+      this.tokenAllowance.set(formatUnits(allowance, this.tokenDecimals()));
 
       // Consider approved if allowance is greater than 0
       // In a real app, you might want to check if it's greater than the amount needed
-      this.isTokenApproved.set(allowanceBigInt > 0n);
+      this.isTokenApproved.set(allowance > 0n);
     } catch (error) {
       console.error('Error checking ERC20 approval:', error);
       throw new Error(`Failed to check token approval: ${error instanceof Error ? error.message : String(error)}`);
@@ -550,94 +335,111 @@ export class HomeComponent {
   }
 
   /**
-   * Request approval for the ERC20 token
+   * Standalone ERC20 approval (bound to the template button). The create
+   * flow doesn't need it — createListing() batches missing approvals into
+   * the create transaction.
    */
   async setERC20Approval(): Promise<void> {
     if (!this.tokenContractAddress) return;
 
-    const walletClient = this.walletService.getWalletClient();
-    if (!walletClient) {
-      throw new Error('No wallet client available');
+    const account = this.walletService.getAccount();
+    const provider = this.walletService.getProvider();
+    if (!account || !provider) {
+      throw new Error('No wallet account available');
     }
 
-    const walletAddress = this.walletService.walletAddress();
-    if (!walletAddress) {
-      throw new Error('Wallet not connected');
-    }
-
-    // Get the Pair Factory address from our constants for the current chain
-    const pairFactoryAddress = CONTRACT_ADDRESSES[this.currentChainId].PAIR_FACTORY_V2_HOOKS;
-
-    // Call approve on the ERC20 contract with a very large number (max uint256)
-    const maxUint256 = 2n ** 256n - 1n;
-
-    await walletClient.writeContract({
-      address: this.tokenContractAddress as `0x${string}`,
-      abi: ERC20,
-      functionName: 'approve',
-      args: [pairFactoryAddress as `0x${string}`, maxUint256],
-      chain: this.walletService.getCurrentChain(),
-      account: walletAddress as `0x${string}`
-    });
+    const { transaction_hash: hash } = await account.execute([this.buildERC20ApprovalCall()]);
+    await provider.waitForTransaction(hash);
 
     // After approval, check the allowance again
     await this.checkERC20Approval();
   }
 
-  private async createPool(): Promise<void> {
-    const walletClient = this.walletService.getWalletClient();
-    if (!walletClient) {
-      throw new Error('No wallet client available');
+  /** approve(factory, max u256) on the ERC20 token. */
+  private buildERC20ApprovalCall(): Call {
+    const pairFactoryAddress = this.requireAddress('PAIR_FACTORY_V2_HOOKS');
+    const maxUint256 = 2n ** 256n - 1n;
+    return {
+      contractAddress: this.tokenContractAddress,
+      entrypoint: 'approve',
+      calldata: [pairFactoryAddress, ...u256Calldata(maxUint256)],
+    };
+  }
+
+  private requireAddress(key: 'PAIR_FACTORY_V2_HOOKS' | 'LINEAR_CURVE_V2' | 'LISTING_BOOK'): string {
+    const addr = CONTRACT_ADDRESSES[this.currentChainId][key];
+    if (!addr) {
+      throw new Error(`${key} is not configured for ${this.currentChainId} — is the deployments file loaded?`);
+    }
+    return addr;
+  }
+
+  private async createPool(approvalCalls: Call[]): Promise<void> {
+    const account = this.walletService.getAccount();
+    const provider = this.walletService.getProvider();
+    if (!account || !provider) {
+      throw new Error('No wallet account available');
     }
     const walletAddress = this.walletService.walletAddress();
-    const pairFactoryAddress = CONTRACT_ADDRESSES[this.currentChainId].PAIR_FACTORY_V2_HOOKS;
-    if (this.tokenContractAddress == '') {
-      await walletClient.writeContract({
-        address: pairFactoryAddress as `0x${string}`,
-        abi: FactoryABI,
-        functionName: 'createPairERC721ETH',
-        args: [
-          this.nftContractAddress as `0x${string}`,
-          CONTRACT_ADDRESSES[this.currentChainId].LINEAR_CURVE_V2 as `0x${string}`,
-          walletAddress as `0x${string}`,
-          1, // PoolType: TOKEN/NFT/TRADE
-          0n, // Delta
-          0n, // Fee
-          BigInt(this.startingPrice) * BigInt(1e18), // Spot price times decimals scalar
-          '0x0000000000000000000000000000000000000000' as `0x${string}`, // Property checker
-          this.nftIds.split(',').map(id => BigInt(id.trim())), // Initial NFT IDs
-          CONTRACT_ADDRESSES[this.currentChainId].LISTING_BOOK as `0x${string}`, // Hook address
-          '0x0000000000000000000000000000000000000000' as `0x${string}`, // Referral address
-        ],
-        chain: this.walletService.getCurrentChain(),
-        account: walletAddress as `0x${string}`
-      });
+    if (!walletAddress) {
+      throw new Error('Wallet not connected');
     }
-    else {
-      await walletClient.writeContract({
-        address: pairFactoryAddress as `0x${string}`,
-        abi: FactoryABI,
-        functionName: 'createPairERC721ERC20',
-        args: [
-          {
-            token: this.tokenContractAddress as `0x${string}`,
-            nft: this.nftContractAddress as `0x${string}`,
-            bondingCurve: CONTRACT_ADDRESSES[this.currentChainId].LINEAR_CURVE_V2 as `0x${string}`,
-            assetRecipient: walletAddress as `0x${string}`,
-            poolType: 1, // PoolType: TOKEN/NFT/TRADE
-            delta: 0n, // Delta
-            fee: 0n, // Fee
-            spotPrice: BigInt(this.startingPrice) * BigInt(1e18), // Spot price times decimals scalar
-            propertyChecker: '0x0000000000000000000000000000000000000000' as `0x${string}`, // Property checker
-            initialNFTIDs: this.nftIds.split(',').map(id => BigInt(id.trim())), // Initial NFT IDs
-            initialTokenBalance: 0n, // Initial token balance
-            hookAddress: CONTRACT_ADDRESSES[this.currentChainId].LISTING_BOOK as `0x${string}`, // Hook address
-            referralAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`, // Referral address
-          }
+
+    const pairFactoryAddress = this.requireAddress('PAIR_FACTORY_V2_HOOKS');
+    const linearCurve = this.requireAddress('LINEAR_CURVE_V2');
+    const listingBook = this.requireAddress('LISTING_BOOK');
+    const initialNftIds = this.nftIds.split(',').map(id => BigInt(id.trim()));
+    const spotPrice = BigInt(this.startingPrice) * BigInt(1e18); // u128, 18-decimals scalar
+
+    let createCall: Call;
+    if (this.tokenContractAddress === '') {
+      // create_pair_erc721_eth(nft, bonding_curve, asset_recipient, pool_type,
+      //   delta, fee, spot_price, property_checker, initial_nft_ids,
+      //   hook_address, referral_address)
+      createCall = {
+        contractAddress: pairFactoryAddress,
+        entrypoint: 'create_pair_erc721_eth',
+        calldata: [
+          this.nftContractAddress,
+          linearCurve,
+          walletAddress, // asset_recipient
+          POOL_TYPE_NFT, // pool_type enum (felt 0/1/2)
+          '0', // delta (u128)
+          '0', // fee (u128)
+          spotPrice.toString(), // spot_price (u128)
+          ZERO_ADDRESS, // property_checker
+          ...u256ArrayCalldata(initialNftIds),
+          listingBook, // hook_address
+          ZERO_ADDRESS, // referral_address
         ],
-        chain: this.walletService.getCurrentChain(),
-        account: walletAddress as `0x${string}`
-      });
+      };
+    } else {
+      // create_pair_erc721_erc20(params: CreateERC721ERC20PairParams) —
+      // the struct is serialized as its members, in declaration order.
+      createCall = {
+        contractAddress: pairFactoryAddress,
+        entrypoint: 'create_pair_erc721_erc20',
+        calldata: [
+          this.tokenContractAddress, // token
+          this.nftContractAddress, // nft
+          linearCurve, // bonding_curve
+          walletAddress, // asset_recipient
+          POOL_TYPE_NFT, // pool_type enum (felt 0/1/2)
+          '0', // delta (u128)
+          '0', // fee (u128)
+          spotPrice.toString(), // spot_price (u128)
+          ZERO_ADDRESS, // property_checker
+          ...u256ArrayCalldata(initialNftIds), // initial_nft_ids
+          ...u256Calldata(0n), // initial_token_balance
+          listingBook, // hook_address
+          ZERO_ADDRESS, // referral_address
+        ],
+      };
     }
+
+    const { transaction_hash: hash } = await account.execute([...approvalCalls, createCall]);
+    console.log('Create pool transaction hash:', hash);
+    await provider.waitForTransaction(hash);
+    await this.walletService.fetchBalance();
   }
 }

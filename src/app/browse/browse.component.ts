@@ -2,27 +2,21 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { Contract } from 'starknet';
 import { WalletService } from '../services/wallet.service';
 import { NFTService, TransactionStatus } from '../services/nft.service';
-import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL } from '../services/address';
+import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL, ZERO_ADDRESS, normalizeAddress } from '../services/address';
 import { ListingBook } from '../../abi/ListingBook';
 import { Pair721 } from '../../abi/Pair721';
-import { Multicall } from '../../abi/Multicall';
 import { ERC721 } from '../../abi/ERC721';
-import { encodeFunctionData, decodeFunctionResult } from 'viem';
+import { parseNftQuote } from '../services/starknet.util';
 import { formatTokenAmount } from '../services/format.util';
-
-// Define a type for the multicall calls
-interface MulticallCall {
-  target: `0x${string}`;
-  callData: `0x${string}`;
-}
 
 // Define a type for the listing data
 interface ListingData {
   pairAddress: string;
   nftIds: readonly bigint[];
-  price: bigint; // Price to buy an NFT (inputAmount from getBuyNFTQuote)
+  price: bigint; // Price to buy an NFT (amount from get_buy_nft_quote)
   isBuying?: boolean; // Flag to track if a buy transaction is in progress
 }
 
@@ -43,7 +37,7 @@ export class BrowseComponent implements OnInit {
   address: string | null = null;
 
   // Chain information
-  chainId: ChainIdType = CHAIN_ID.YOMINET; // Default to YOMINET
+  chainId: ChainIdType = CHAIN_ID.DEVNET; // Default to DEVNET
 
   // Listings data
   erc721Listings = signal<string[]>([]);
@@ -56,8 +50,8 @@ export class BrowseComponent implements OnInit {
   // Get the current chain ID from the wallet service
   get currentChainId(): ChainIdType {
     const chain = this.walletService.getCurrentChain();
-    if (!chain) return CHAIN_ID.YOMINET;
-    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.YOMINET;
+    if (!chain) return CHAIN_ID.DEVNET;
+    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.DEVNET;
   }
 
   ngOnInit(): void {
@@ -88,8 +82,8 @@ export class BrowseComponent implements OnInit {
     if (mapped) {
       this.chainId = mapped;
     } else {
-      this.chainId = CHAIN_ID.YOMINET;
-      console.warn(`Unrecognized chain label: ${label}, defaulting to YOMINET`);
+      this.chainId = CHAIN_ID.DEVNET;
+      console.warn(`Unrecognized chain label: ${label}, defaulting to DEVNET`);
     }
   }
 
@@ -125,19 +119,23 @@ export class BrowseComponent implements OnInit {
    */
   async fetchERC721Listings(collectionAddress: string): Promise<void> {
     try {
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        console.error('No public client available');
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        console.error('No provider available');
         return;
       }
 
       // Get the ListingBook contract address for the current chain
-      const listingBookAddress = CONTRACT_ADDRESSES[this.currentChainId].LISTING_BOOK as `0x${string}`;
-      // Get the Multicall contract address for the current chain
-      const multicallAddress = CONTRACT_ADDRESSES[this.currentChainId].MULTICALL as `0x${string}`;
+      const listingBookAddress = CONTRACT_ADDRESSES[this.currentChainId].LISTING_BOOK;
+      if (!listingBookAddress) {
+        console.error(`LISTING_BOOK is not configured for ${this.currentChainId}`);
+        this.tokenName.set('Unknown Collection');
+        this.tokenSymbol.set('???');
+        return;
+      }
 
-      // Use token address of 0, start of 0, end of 0 as specified
-      const tokenAddress = '0x0000000000000000000000000000000000000000' as `0x${string}`;
+      // token = 0 (any quote token), start = 0, end = 0 ("all")
+      const tokenAddress = ZERO_ADDRESS;
       const start = 0n;
       const end = 0n;
 
@@ -146,74 +144,20 @@ export class BrowseComponent implements OnInit {
         token: tokenAddress,
         start,
         end,
-        listingBookAddress,
-        multicallAddress
+        listingBookAddress
       });
 
-      // Prepare the calls for Multicall to get name, symbol, and listings
-      const calls: MulticallCall[] = [
-        // Get token name
-        {
-          target: collectionAddress as `0x${string}`,
-          callData: encodeFunctionData({
-            abi: ERC721,
-            functionName: 'name'
-          })
-        },
-        // Get token symbol
-        {
-          target: collectionAddress as `0x${string}`,
-          callData: encodeFunctionData({
-            abi: ERC721,
-            functionName: 'symbol'
-          })
-        },
-        // Get listings
-        {
-          target: listingBookAddress,
-          callData: encodeFunctionData({
-            abi: ListingBook,
-            functionName: 'get721Listings',
-            args: [
-              collectionAddress as `0x${string}`,
-              tokenAddress,
-              start,
-              end
-            ]
-          })
-        }
-      ];
+      // Batch the independent reads over the RPC provider.
+      const collection = new Contract(ERC721, collectionAddress, provider);
+      const listingBook = new Contract(ListingBook, listingBookAddress, provider);
+      const [name, symbol, rawListings] = await Promise.all([
+        collection.call('name', []) as Promise<string>,
+        collection.call('symbol', []) as Promise<string>,
+        listingBook.call('get721_listings', [collectionAddress, tokenAddress, start, end]) as Promise<bigint[]>,
+      ]);
 
-      // Execute the Multicall
-      const result = await publicClient.readContract({
-        address: multicallAddress,
-        abi: Multicall,
-        functionName: 'aggregate' as any,
-        args: [calls as any]
-      }) as unknown;
-
-      // Extract the return data from the result
-      const [, returnData] = result as [bigint, `0x${string}`[]];
-
-      // Decode the name and symbol
-      const name = decodeFunctionResult({
-        abi: ERC721,
-        functionName: 'name',
-        data: returnData[0]
-      }) as string;
-
-      const symbol = decodeFunctionResult({
-        abi: ERC721,
-        functionName: 'symbol',
-        data: returnData[1]
-      }) as string;
-
-      // Decode the listings
-      const listings = decodeFunctionResult({
-        abi: ListingBook,
-        functionName: 'get721Listings',
-        data: returnData[2]
-      }) as `0x${string}`[];
+      // Pair addresses come back as felts — normalize to canonical hex.
+      const listings = rawListings.map(a => normalizeAddress(a));
 
       console.log('Token metadata:', { name, symbol });
       console.log('ERC721 listings:', listings);
@@ -223,7 +167,7 @@ export class BrowseComponent implements OnInit {
       this.tokenSymbol.set(symbol);
 
       // Update the listings signal
-      this.erc721Listings.set(listings as unknown as string[]);
+      this.erc721Listings.set(listings);
 
       // If we have listings, fetch the NFT IDs for each pair
       if (listings.length > 0) {
@@ -238,102 +182,52 @@ export class BrowseComponent implements OnInit {
   }
 
   /**
-   * Fetch NFT IDs for each pair using a multicall
+   * Fetch NFT IDs and buy quotes for each pair, batched via Promise.all on
+   * the RPC provider (replaces the old Multicall contract aggregation).
    * @param pairAddresses Array of pair addresses
    */
-  async fetchNFTIdsForPairs(pairAddresses: `0x${string}`[]): Promise<void> {
+  async fetchNFTIdsForPairs(pairAddresses: string[]): Promise<void> {
     try {
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        console.error('No public client available');
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        console.error('No provider available');
         return;
       }
 
-      // Get the Multicall contract address for the current chain
-      const multicallAddress = CONTRACT_ADDRESSES[this.currentChainId].MULTICALL as `0x${string}`;
-
-      // Prepare the calls for Multicall - for each pair, we need to get both getAllIds and getBuyNFTQuote
-      const calls: MulticallCall[] = [];
-
-      // For each pair, add two calls: one for getAllIds and one for getBuyNFTQuote
-      pairAddresses.forEach(pairAddress => {
-        // Add call for getAllIds
-        calls.push({
-          target: pairAddress,
-          callData: encodeFunctionData({
-            abi: Pair721,
-            functionName: 'getAllIds'
-          })
-        });
-
-        // Add call for getBuyNFTQuote with id=0 and quantity=1
-        calls.push({
-          target: pairAddress,
-          callData: encodeFunctionData({
-            abi: Pair721,
-            functionName: 'getBuyNFTQuote',
-            args: [0n, 1n] // id=0, quantity=1
-          })
-        });
-      });
-
       console.log('Fetching NFT IDs and quotes for pairs:', {
         pairAddresses,
-        multicallAddress,
-        callsCount: calls.length
+        callsCount: pairAddresses.length * 2
       });
 
-      // Execute the Multicall
-      const result = await publicClient.readContract({
-        address: multicallAddress,
-        abi: Multicall,
-        functionName: 'aggregate' as any,
-        args: [calls as any]
-      }) as unknown;
+      const listingsWithIds: ListingData[] = await Promise.all(
+        pairAddresses.map(async (pairAddress): Promise<ListingData> => {
+          try {
+            const pair = new Contract(Pair721, pairAddress, provider);
+            const [nftIds, rawQuote] = await Promise.all([
+              pair.call('get_all_ids', []) as Promise<bigint[]>,
+              pair.call('get_buy_nft_quote', [0n, 1n]), // asset_id=0, num_nfts=1
+            ]);
 
-      // Extract the return data from the result
-      const [, returnData] = result as [bigint, `0x${string}`[]];
-
-      // Process the results - for each pair, we have two results (getAllIds and getBuyNFTQuote)
-      const listingsWithIds: ListingData[] = pairAddresses.map((pairAddress, index) => {
-        try {
-          // Calculate the indices for this pair's data in the returnData array
-          const idsIndex = index * 2; // getAllIds result
-          const quoteIndex = index * 2 + 1; // getBuyNFTQuote result
-
-          // Decode the getAllIds result
-          const nftIds = decodeFunctionResult({
-            abi: Pair721,
-            functionName: 'getAllIds',
-            data: returnData[idsIndex]
-          });
-
-          // Decode the getBuyNFTQuote result
-          const quoteResult = decodeFunctionResult({
-            abi: Pair721,
-            functionName: 'getBuyNFTQuote',
-            data: returnData[quoteIndex]
-          }) as [number, bigint, bigint, bigint, bigint, bigint]; // [error, newSpotPrice, newDelta, inputAmount, protocolFee, royaltyAmount]
-
-          // Extract the inputAmount (index 3 in the result array)
-          const inputAmount = quoteResult[3];
-
-          return {
-            pairAddress: pairAddress,
-            nftIds: nftIds,
-            price: inputAmount,
-            isBuying: false
-          };
-        } catch (error) {
-          console.error(`Error decoding data for pair ${pairAddress}:`, error);
-          return {
-            pairAddress: pairAddress,
-            nftIds: [],
-            price: 0n,
-            isBuying: false
-          };
-        }
-      });
+            // NFTQuote struct fields: (error, new_spot_price, new_delta,
+            // amount, protocol_fee, royalty_amount); error != 0 => unavailable.
+            const quote = parseNftQuote(rawQuote);
+            return {
+              pairAddress,
+              nftIds,
+              price: quote.error === 0 ? quote.amount : 0n,
+              isBuying: false
+            };
+          } catch (error) {
+            console.error(`Error reading data for pair ${pairAddress}:`, error);
+            return {
+              pairAddress,
+              nftIds: [],
+              price: 0n,
+              isBuying: false
+            };
+          }
+        })
+      );
 
       console.log('Listings with NFT IDs and prices:', listingsWithIds);
 

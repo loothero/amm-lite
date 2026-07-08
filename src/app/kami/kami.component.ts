@@ -1,8 +1,9 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Contract } from 'starknet';
 import { WalletService } from '../services/wallet.service';
-import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER } from '../services/address';
+import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, normalizeAddress } from '../services/address';
 import { ERC721 } from '../../abi/ERC721';
 
 @Component({
@@ -27,8 +28,8 @@ export class KamiComponent implements OnInit {
 
   get currentChainId(): ChainIdType {
     const chain = this.walletService.getCurrentChain();
-    if (!chain) return CHAIN_ID.YOMINET;
-    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.YOMINET;
+    if (!chain) return CHAIN_ID.DEVNET;
+    return CHAIN_ID_BY_NUMBER[chain.id] ?? CHAIN_ID.DEVNET;
   }
 
   ngOnInit(): void {
@@ -47,10 +48,10 @@ export class KamiComponent implements OnInit {
    * Check if the user is on the correct network and process the ID
    */
   private async checkNetworkAndProcessId(): Promise<void> {
-    // Check if we're on YOMINET
-    if (this.currentChainId !== CHAIN_ID.YOMINET) {
+    // Check we're on a chain with a configured KAMI collection
+    if (!CONTRACT_ADDRESSES[this.currentChainId].KAMI) {
       this.isWrongNetwork.set(true);
-      this.errorMessage.set('Please connect to the YOMINET network to view this KAMI NFT.');
+      this.errorMessage.set('The KAMI collection is not configured on this network.');
       return;
     }
 
@@ -64,39 +65,35 @@ export class KamiComponent implements OnInit {
   }
 
   /**
-   * Process the KAMI ID by calling ownerOf and redirecting if it's a pool
+   * Process the KAMI ID by calling owner_of and redirecting if it's a pool
    */
   private async processKamiId(id: string): Promise<void> {
     try {
       this.isLoading.set(true);
       this.errorMessage.set('');
 
-      // Get the public client
-      const publicClient = this.walletService.getPublicClient();
-      if (!publicClient) {
-        throw new Error('No public client available');
+      // Get the provider
+      const provider = this.walletService.getProvider();
+      if (!provider) {
+        throw new Error('No provider available');
       }
 
       // Get the KAMI contract address
-      const kamiAddress = CONTRACT_ADDRESSES[CHAIN_ID.YOMINET].KAMI;
+      const kamiAddress = CONTRACT_ADDRESSES[this.currentChainId].KAMI;
       if (!kamiAddress) {
         throw new Error('KAMI contract address not found');
       }
 
-      console.log(`Calling ownerOf(${id}) on KAMI contract at ${kamiAddress}`);
+      console.log(`Calling owner_of(${id}) on KAMI contract at ${kamiAddress}`);
 
-      // Call ownerOf on the KAMI contract
-      const owner = await publicClient.readContract({
-        address: kamiAddress as `0x${string}`,
-        abi: ERC721,
-        functionName: 'ownerOf',
-        args: [BigInt(id)]
-      }) as `0x${string}`;
+      // Call owner_of on the KAMI contract
+      const kami = new Contract(ERC721, kamiAddress, provider);
+      const owner = normalizeAddress(await kami.call('owner_of', [BigInt(id)]) as bigint);
 
       console.log(`Owner of KAMI #${id} is ${owner}`);
 
       // Redirect to the manage route with the pool address
-      this.router.navigate(['/manage', 'yominet', owner]);
+      this.router.navigate(['/manage', this.currentChainId.toLowerCase(), owner]);
     } catch (error) {
       console.error('Error processing KAMI ID:', error);
       this.errorMessage.set(`Error: ${error instanceof Error ? error.message : String(error)}`);

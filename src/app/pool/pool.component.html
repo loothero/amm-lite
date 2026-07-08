@@ -194,7 +194,7 @@
                   class="w-full bg-zinc-900 text-white border border-zinc-800 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:border-[var(--sudo-purple)] placeholder:text-zinc-700"
                   placeholder="e.g. 12, 47, 88"
                 >
-                <p class="text-[10px] text-zinc-600 mt-1.5">setApprovalForAll will be requested if not yet granted.</p>
+                <p class="text-[10px] text-zinc-600 mt-1.5">If not yet granted, the NFT approval is batched into the same transaction.</p>
                 <button
                   (click)="sell()"
                   [disabled]="isSelling() || sellIds().length === 0 || sellPrice() === null || !nftContractAddress()"
