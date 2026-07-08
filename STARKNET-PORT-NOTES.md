@@ -82,14 +82,21 @@ The Starknet UX win over EVM: approvals ride in the same transaction.
 
 ### Chain/env config
 
-- `src/app/services/deployments.ts` + an `provideAppInitializer` hook in
+- `src/app/services/deployments.ts` + a `provideAppInitializer` hook in
   `app.config.ts`: fetches `deployments/katana.json` (URL configurable via
-  `DEPLOYMENTS_URL`; copy `lssvm2-starknet/tools/deploy/deployments/katana.json`
-  into `public/deployments/` for local dev) and applies `contracts.*` to the
-  DEVNET registry entry plus `rpcUrl`/`chainId` to the Devnet chain config.
-  Absent file => placeholder (empty) devnet addresses; app still builds/runs,
-  reads fail gracefully. Curve keys accept `linear`/`linearCurve`/`LinearCurve`
-  spellings (exact key names TBD until the file lands).
+  `DEPLOYMENTS_URL`) and applies `contracts.*` to the DEVNET registry entry
+  plus `rpcUrl`/`chainId` to the Devnet chain config. The real file from
+  `lssvm2-starknet/deployments/katana.json` is checked in at
+  `public/deployments/katana.json` (all keys verified to parse:
+  `contracts{factory,router,listingBook,ethToken,curves{linear,exponential,
+  xyk,gda}}`, `chainId`, `rpcUrl` -> `http://localhost:5050`). Absent file =>
+  placeholder (empty) devnet addresses; app still builds/runs, reads fail
+  gracefully.
+- The devnet (starknet-devnet v0.9.0) reports chain id **SN_SEPOLIA**, which
+  collides with the public Sepolia entry — `configureDevnet()` therefore
+  drops the public Sepolia chain entry while a deployments file is active, so
+  the local RPC wins chain-id lookups. Remove the deployments file to get
+  public Sepolia back.
 - `address.ts`: legacy YOMINET/ETHEREUM registry entries removed (their EVM
   call sites are gone); `ETH_TOKEN` per-chain key added. Component fallbacks
   moved YOMINET->DEVNET / ETHEREUM->STARKNET.
@@ -97,10 +104,33 @@ The Starknet UX win over EVM: approvals ride in the same transaction.
   shims removed — everything uses `getProvider()`/`getAccount()`. Added
   `configureDevnet()` (deployments hook) and `ethTokenAddress()`.
 
+### starknet.js v10 (RPC spec 0.10)
+
+Bumped `starknet` 7.6.4 -> 10.0.2: the local starknet-devnet v0.9.0 speaks
+RPC spec 0.10, which v7 does not support (v10 supports 0.9/0.10 only).
+API changes absorbed:
+
+- `new Contract(abi, address, provider)` -> `new Contract({ abi, address,
+  providerOrAccount })` (all ~20 construction sites).
+- `new WalletAccount(provider, walletProvider, address)` ->
+  `new WalletAccount({ provider, walletProvider, address })` (v10 keeps the
+  get-starknet v4-flavored class; get-starknet stays at v4.0.8).
+- `RpcProvider`/`callContract`/`waitForTransaction`/`CallData`/`uint256`/
+  `CairoCustomEnum`/`validateAndParseAddress` unchanged — the offline
+  encode/decode verification suite passes identically under v10.
+- Public RPC endpoints switched from Blast (`/rpc/v0_8`, now discontinued —
+  probes return "Blast API is no longer available") to Cartridge:
+  `https://api.cartridge.gg/x/starknet/mainnet` (spec 0.10.2) and
+  `.../sepolia` (spec 0.9.0), both verified live-compatible with v10.
+
 ### Behavior notes
 
 - "ETH" pools on Starknet price in the ETH ERC20, so `pair.token()` is never
   zero — the pool page displays them as ERC20 pools whose symbol is ETH.
+- **Pools created with `asset_recipient = 0` route sale proceeds and sold
+  NFTs to the pool OWNER, not the pool** (Solidity parity). The manage page's
+  "withdrawable balance" view must treat a zero ERC20 balance on a listing
+  pool as legitimate — proceeds accrue to the owner's account directly.
 - `manage` metadata uses `token_uri` with a legacy `tokenURI` fallback;
   base64 `data:application/json` parsing unchanged.
 - The kami page now keys off whichever chain has a `KAMI` address configured
@@ -121,10 +151,11 @@ mention it). `formatUnits` is now local (`format.util.ts`).
 
 ## What remains (follow-up integration task)
 
-- Manual validation against a live katana devnet (wallet connect, listing
-  creation, browse/manage/pool reads, buy/sell/withdraw) once
-  `deployments/katana.json` is produced — everything past `CallData`
-  encode/decode verification is untested against a node.
+- Manual validation against the live devnet (wallet connect, listing
+  creation, browse/manage/pool reads, buy/sell/withdraw) — the deployments
+  file is wired and statically verified, but everything past `CallData`
+  encode/decode verification is untested against a node. Seed data is
+  available in `katana.json` (`seeds.collections` / `seeds.pools`).
 - `VeryFastRouter` is deployed but not used by this UI (no ABI file emitted).
 - ERC1155 flows: ABI + factory entrypoints exist; no UI.
 - Public-network (SN_MAIN/SN_SEPOLIA) contract addresses once deployed.

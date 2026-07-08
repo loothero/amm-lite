@@ -148,8 +148,8 @@ export class BrowseComponent implements OnInit {
       });
 
       // Batch the independent reads over the RPC provider.
-      const collection = new Contract(ERC721, collectionAddress, provider);
-      const listingBook = new Contract(ListingBook, listingBookAddress, provider);
+      const collection = new Contract({ abi: ERC721, address: collectionAddress, providerOrAccount: provider });
+      const listingBook = new Contract({ abi: ListingBook, address: listingBookAddress, providerOrAccount: provider });
       const [name, symbol, rawListings] = await Promise.all([
         collection.call('name', []) as Promise<string>,
         collection.call('symbol', []) as Promise<string>,
@@ -202,7 +202,7 @@ export class BrowseComponent implements OnInit {
       const listingsWithIds: ListingData[] = await Promise.all(
         pairAddresses.map(async (pairAddress): Promise<ListingData> => {
           try {
-            const pair = new Contract(Pair721, pairAddress, provider);
+            const pair = new Contract({ abi: Pair721, address: pairAddress, providerOrAccount: provider });
             const [nftIds, rawQuote] = await Promise.all([
               pair.call('get_all_ids', []) as Promise<bigint[]>,
               pair.call('get_buy_nft_quote', [0n, 1n]), // asset_id=0, num_nfts=1

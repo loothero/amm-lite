@@ -87,7 +87,7 @@ export class KamiComponent implements OnInit {
       console.log(`Calling owner_of(${id}) on KAMI contract at ${kamiAddress}`);
 
       // Call owner_of on the KAMI contract
-      const kami = new Contract(ERC721, kamiAddress, provider);
+      const kami = new Contract({ abi: ERC721, address: kamiAddress, providerOrAccount: provider });
       const owner = normalizeAddress(await kami.call('owner_of', [BigInt(id)]) as bigint);
 
       console.log(`Owner of KAMI #${id} is ${owner}`);

@@ -77,7 +77,7 @@ export class NFTService {
 
     let factoryAddr: string;
     try {
-      const pair = new Contract(Pair721, pairAddress, provider);
+      const pair = new Contract({ abi: Pair721, address: pairAddress, providerOrAccount: provider });
       factoryAddr = normalizeAddress(await pair.call('factory', []) as bigint);
     } catch (e) {
       console.warn('Could not read pair factory(), defaulting to v2', e);
@@ -114,7 +114,7 @@ export class NFTService {
       if (!walletAddress) return this.fail(new Error('No wallet address available'), params.pairAddress);
 
       // The token the pair prices in (the configured ETH ERC20 for ETH pairs).
-      const pair = new Contract(Pair721, params.pairAddress, provider);
+      const pair = new Contract({ abi: Pair721, address: params.pairAddress, providerOrAccount: provider });
       const tokenAddress = normalizeAddress(await pair.call('token', []) as bigint);
 
       const calls: Call[] = [
@@ -170,7 +170,7 @@ export class NFTService {
       if (!walletAddress) return this.fail(new Error('No wallet address available'), params.pairAddress);
 
       // Check set_approval_for_all on the NFT contract for the pair.
-      const nft = new Contract(ERC721, params.nftContract, provider);
+      const nft = new Contract({ abi: ERC721, address: params.nftContract, providerOrAccount: provider });
       const isApproved = await nft.call('is_approved_for_all', [walletAddress, params.pairAddress]) as boolean;
 
       const calls: Call[] = [];

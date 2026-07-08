@@ -44,18 +44,21 @@ const SUPPORTED_CHAINS: ChainConfig[] = [
     id: STARKNET_CHAIN_ID.SN_MAIN,
     label: 'Starknet',
     token: 'ETH',
-    rpcUrl: 'https://starknet-mainnet.public.blastapi.io/rpc/v0_8',
+    // Public Cartridge RPC — speaks RPC spec 0.10. (The Blast API public
+    // endpoints were discontinued, and starknet.js v10 needs spec >= 0.9.)
+    rpcUrl: 'https://api.cartridge.gg/x/starknet/mainnet',
     explorerUrl: 'https://voyager.online',
   },
   {
     id: STARKNET_CHAIN_ID.SN_SEPOLIA,
     label: 'Sepolia',
     token: 'ETH',
-    rpcUrl: 'https://starknet-sepolia.public.blastapi.io/rpc/v0_8',
+    rpcUrl: 'https://api.cartridge.gg/x/starknet/sepolia',
     explorerUrl: 'https://sepolia.voyager.online',
   },
   {
-    // Local katana devnet (default chain id 'KATANA').
+    // Local devnet. id/rpcUrl are overridden at bootstrap from the
+    // deployments file (starknet-devnet reports SN_SEPOLIA by default).
     id: STARKNET_CHAIN_ID.SN_DEVNET,
     label: 'Devnet',
     token: 'ETH',
@@ -234,7 +237,8 @@ export class WalletService {
       this.account = null;
       return;
     }
-    this.account = new WalletAccount(provider, wallet, address);
+    // starknet.js v10: options-object constructor (get-starknet v4 flavor).
+    this.account = new WalletAccount({ provider, walletProvider: wallet, address });
   }
 
   private safeNormalizeAddress(address: string): string {
@@ -353,7 +357,18 @@ export class WalletService {
     const devnet = SUPPORTED_CHAINS.find(c => c.label === 'Devnet');
     if (!devnet) return;
     if (overrides.rpcUrl) devnet.rpcUrl = overrides.rpcUrl;
-    if (overrides.chainId) devnet.id = normalizeChainId(overrides.chainId);
+    if (overrides.chainId) {
+      devnet.id = normalizeChainId(overrides.chainId);
+      // starknet-devnet reports SN_SEPOLIA by default, which collides with
+      // the public Sepolia entry. The devnet entry must win chain-id lookups
+      // (and template @for track keys must stay unique), so drop the
+      // colliding public entry while a deployments file is active.
+      for (let i = SUPPORTED_CHAINS.length - 1; i >= 0; i--) {
+        if (SUPPORTED_CHAINS[i] !== devnet && SUPPORTED_CHAINS[i].id === devnet.id) {
+          SUPPORTED_CHAINS.splice(i, 1);
+        }
+      }
+    }
   }
 
   /** The ERC20 the current chain treats as "ETH" (per-chain override-able). */

@@ -250,7 +250,7 @@ export class PoolComponent implements OnInit {
     provider: RpcProvider, pair: string, fn: string,
   ): Promise<T | undefined> {
     try {
-      const contract = new Contract(Pair721, pair, provider);
+      const contract = new Contract({ abi: Pair721, address: pair, providerOrAccount: provider });
       return await contract.call(fn, []) as T;
     } catch (e) {
       console.warn(`Pair ${fn}() reverted:`, e);
@@ -263,7 +263,7 @@ export class PoolComponent implements OnInit {
     provider: RpcProvider, address: string, abi: any,
     fields: [{ fn: string; fallback: A }, { fn: string; fallback: B }],
   ): Promise<[A, B]> {
-    const contract = new Contract(abi, address, provider);
+    const contract = new Contract({ abi, address, providerOrAccount: provider });
     const read = async <T>(fn: string, fallback: T): Promise<T> => {
       try {
         return await contract.call(fn, []) as T;
@@ -278,7 +278,7 @@ export class PoolComponent implements OnInit {
 
   private async readInventory(provider: RpcProvider, pair: string): Promise<void> {
     try {
-      const contract = new Contract(Pair721, pair, provider);
+      const contract = new Contract({ abi: Pair721, address: pair, providerOrAccount: provider });
       const inventory = await contract.call('get_all_ids', []) as readonly bigint[];
       this.inventoryIds.set(inventory);
     } catch (e) {
@@ -289,7 +289,7 @@ export class PoolComponent implements OnInit {
 
   private async readQuoteToken(provider: RpcProvider, pair: string): Promise<void> {
     try {
-      const contract = new Contract(Pair721, pair, provider);
+      const contract = new Contract({ abi: Pair721, address: pair, providerOrAccount: provider });
       const tok = normalizeAddress(await contract.call('token', []) as bigint);
       // Note: on Starknet "ETH" pools still price in the configured ETH
       // ERC20, so token() is never zero in practice — the pool is displayed
@@ -303,7 +303,7 @@ export class PoolComponent implements OnInit {
   /** ETH-ERC20 balance of the pair (only used when token() is unset/zero). */
   private async readEthBalance(provider: RpcProvider, pair: string): Promise<void> {
     try {
-      const eth = new Contract(ERC20, this.walletService.ethTokenAddress(), provider);
+      const eth = new Contract({ abi: ERC20, address: this.walletService.ethTokenAddress(), providerOrAccount: provider });
       const bal = await eth.call('balance_of', [pair]) as bigint;
       if (!this.tokenAddress()) this.tokenBalanceInPool.set(bal);
     } catch (e) {
@@ -324,7 +324,7 @@ export class PoolComponent implements OnInit {
     provider: RpcProvider, nftAddr: string, pair: string,
   ): Promise<void> {
     try {
-      const contract = new Contract(ERC721, nftAddr, provider);
+      const contract = new Contract({ abi: ERC721, address: nftAddr, providerOrAccount: provider });
       const bal = await contract.call('balance_of', [pair]) as bigint;
       this.nftBalanceInPool.set(bal);
     } catch (e) {
@@ -345,7 +345,7 @@ export class PoolComponent implements OnInit {
     provider: RpcProvider, tokenAddr: string, pair: string,
   ): Promise<void> {
     try {
-      const contract = new Contract(ERC20, tokenAddr, provider);
+      const contract = new Contract({ abi: ERC20, address: tokenAddr, providerOrAccount: provider });
       const bal = await contract.call('balance_of', [pair]) as bigint;
       this.tokenBalanceInPool.set(bal);
     } catch (e) {
@@ -390,7 +390,7 @@ export class PoolComponent implements OnInit {
     errorPrefix: string,
   ): Promise<void> {
     try {
-      const contract = new Contract(Pair721, pair, provider);
+      const contract = new Contract({ abi: Pair721, address: pair, providerOrAccount: provider });
       // NFTQuote struct fields: (error, new_spot_price, new_delta, amount,
       // protocol_fee, royalty_amount); error != 0 => quote unavailable.
       const quote = parseNftQuote(await contract.call(fn, [0n, BigInt(count)]));

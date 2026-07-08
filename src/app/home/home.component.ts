@@ -174,7 +174,7 @@ export class HomeComponent {
 
       const pairFactoryAddress = this.requireAddress('PAIR_FACTORY_V2_HOOKS');
 
-      const nft = new Contract(ERC721, this.nftContractAddress, provider);
+      const nft = new Contract({ abi: ERC721, address: this.nftContractAddress, providerOrAccount: provider });
       const isApproved = await nft.call('is_approved_for_all', [walletAddress, pairFactoryAddress]) as boolean;
 
       this.isApproved.set(!!isApproved);
@@ -223,7 +223,7 @@ export class HomeComponent {
       }
 
       // Batch the independent reads over the RPC provider.
-      const nft = new Contract(ERC721, this.nftContractAddress, provider);
+      const nft = new Contract({ abi: ERC721, address: this.nftContractAddress, providerOrAccount: provider });
       const [name, symbol, balance] = await Promise.all([
         nft.call('name', []) as Promise<string>,
         nft.call('symbol', []) as Promise<string>,
@@ -274,7 +274,7 @@ export class HomeComponent {
       }
 
       // Batch the independent reads over the RPC provider.
-      const token = new Contract(ERC20, this.tokenContractAddress, provider);
+      const token = new Contract({ abi: ERC20, address: this.tokenContractAddress, providerOrAccount: provider });
       const [name, symbol, decimals, balance] = await Promise.all([
         token.call('name', []) as Promise<string>,
         token.call('symbol', []) as Promise<string>,
@@ -316,7 +316,7 @@ export class HomeComponent {
 
       const pairFactoryAddress = this.requireAddress('PAIR_FACTORY_V2_HOOKS');
 
-      const token = new Contract(ERC20, this.tokenContractAddress, provider);
+      const token = new Contract({ abi: ERC20, address: this.tokenContractAddress, providerOrAccount: provider });
       const allowance = await token.call('allowance', [walletAddress, pairFactoryAddress]) as bigint;
 
       // Store the raw allowance value

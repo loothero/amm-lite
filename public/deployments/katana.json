@@ -1,0 +1,102 @@
+{
+  "rpcUrl": "http://localhost:5050",
+  "chainId": "0x534e5f5345504f4c4941",
+  "devnet": "starknet-devnet v0.9.0",
+  "classHashes": {
+    "LinearCurve": "0x171e9387b87c2a6a84cee78e72959ff90fe0fd6a62efa1d767a5479555cd4eb",
+    "ExponentialCurve": "0x1949e502d83f39ba5d97c63ba164c9a9d306e9e833b96edfbd75e0581a3000d",
+    "XykCurve": "0x592f325ac1df877f03f6738205a5ab72d30182bcc2d1636be8ea5f9ffa778b8",
+    "GDACurve": "0x4a8257ee583916b8055137ffe97daeab507f2e907f15796c714e70fd57b8b78",
+    "LSSVMPairERC721": "0x4db774137e2a0c993308f822444006d7f9f6933386c893a45562b2ed06d6bcb",
+    "LSSVMPairERC1155": "0x77061116e991a21d5392f19951e01bcdae76f67e32634b1ffd0ea41845cb877",
+    "LSSVMPairFactory": "0x6b68742f122a31f32138a1b4acc7e2ceeceaa9ab5fa4436b9c0c508a6fd9b59",
+    "RoyaltyRegistry": "0x5524fb47536c1944ec5cbda86b7ceb13126a1484ebb6db91077708459285ee3",
+    "ListingBook": "0x4ea2a5cf500c915c9b63b23011fc8e910778732cfe6ca4f39b80c3e464ead1a",
+    "MerklePropertyChecker": "0x5d19c3574b6f5b9a1417dd9140360c56e15e0dcb0eb4c59d63d4be3d29da205",
+    "RangePropertyChecker": "0x64fb892db2b83c91faa3c4f148cac45cc29041bb78aced35c19ea1860fa85fe",
+    "PropertyCheckerFactory": "0x4aa50549519068ad8d70a41eebf8f4be8890fc72a70a3f6d5d076c5bd2108cb",
+    "StandardSettings": "0x61ece4577324dbad8b06cd1949171439474fbbd3f16f3ecb4ed493da97919ce",
+    "Splitter": "0x67fb2cadf8947dd687c1281e4609e8d7f0efb305f747f2a6fd8fc159ddcc274",
+    "StandardSettingsFactory": "0x5c3fbcd02fc6248120140652d6b8dc824530e20a6afdb36f75e0231dd35d44d",
+    "VeryFastRouter": "0x715992f639a3da5ef6dff8869123b67f0b4b5eebe282f149bba2e45971c293e",
+    "MockERC721": "0x3a0324a0e72c6bb53853a9cadbbfb51cbe82485bbc5444dc6c87feb990d652c",
+    "MockERC1155": "0x41c692b524c531be916805fd5c4d0473d11a63b243cf9c01073454ae56b6681"
+  },
+  "contracts": {
+    "factory": "0x5170e34b50f2fee2bd87bed9933e35502ffef53cd6a0db465f326fca15435a1",
+    "router": "0x2cede037adfd34628846ee7fb7b168a49e5c69c8bf83542739c83250f71aed6",
+    "listingBook": "0x1d516f56349fe1e21223da1fb10b18b9b2ecd2d56a9efc11023582ba70e8004",
+    "royaltyRegistry": "0x1bc174cf6103d3dae684862b01f2f8c6729b2bcbd451e120c83d10bafe072cb",
+    "settingsFactory": "0x2c5395e0fedb6667d81f6ddf2c02f0158df016fd88b3643c88f7b9776255126",
+    "propertyCheckerFactory": "0x56265c5d3d3a539fa09aa953fbfc2d7663ad8cb9e3d19a2eeb65ccc5e5fc0fb",
+    "ethToken": "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7",
+    "curves": {
+      "linear": "0x54d5977758c3d678177aedcfa4803a3c2d4b69116cf87af819a8f417e9f45a4",
+      "exponential": "0x2745a64372356f954279c059d04a2467ec4e3d5e7acd8d4c22ed12dc07941c9",
+      "xyk": "0x2a32197b9248139fc9eca1430c6097e5ba6a3ab650636394f4c69b330e4d310",
+      "gda": "0x768adf71be992be159bb40f39be0de031b40c9f958c443548d27fcc57541c9e"
+    }
+  },
+  "seeds": {
+    "collections": [
+      {
+        "address": "0x16ffa5f8c97268bae5e8f1a09dbb0fb24cccb3fdfa69a43d33f46148fd82682",
+        "kind": "erc721",
+        "label": "MockERC721 A"
+      },
+      {
+        "address": "0x50d5a0ef029817907d8f49e1f6fb89c1879cc9232a259eff742ac1423074ddf",
+        "kind": "erc721",
+        "label": "MockERC721 B"
+      },
+      {
+        "address": "0x3cc1c82fd1005b3475dc4d5cfc93270e2097718935e60bd9115a9184ba8f5d4",
+        "kind": "erc1155",
+        "label": "MockERC1155"
+      }
+    ],
+    "pools": [
+      {
+        "address": "0x05ac5cebbd5f558b771c49d010bc9105db55e7eb39a8203a8fa7a5490fa3d39b",
+        "kind": "erc721-nft",
+        "collection": "0x16ffa5f8c97268bae5e8f1a09dbb0fb24cccb3fdfa69a43d33f46148fd82682",
+        "nftIds": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      {
+        "address": "0x006afd713397fd726fd5257c960d9ad687b2f5966b99371693c448d159c61ffe",
+        "kind": "erc721-nft",
+        "collection": "0x50d5a0ef029817907d8f49e1f6fb89c1879cc9232a259eff742ac1423074ddf",
+        "nftIds": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      {
+        "address": "0x064241eb2a7ea68c567a5e06e38f5e4bb974105a2af33c6e572bace30ef68a5d",
+        "kind": "erc721-token",
+        "collection": "0x16ffa5f8c97268bae5e8f1a09dbb0fb24cccb3fdfa69a43d33f46148fd82682",
+        "nftIds": []
+      },
+      {
+        "address": "0x020091542ad748ddac0dde4ea230e303653fc60ad560ffbe35401b7e3cbecc38",
+        "kind": "erc721-trade",
+        "collection": "0x16ffa5f8c97268bae5e8f1a09dbb0fb24cccb3fdfa69a43d33f46148fd82682",
+        "nftIds": [
+          "4",
+          "5"
+        ]
+      },
+      {
+        "address": "0x060a93b49b40b332d423e036b8d8b7856a173d4ca218c80a30d5e3c828635a4a",
+        "kind": "erc1155-nft",
+        "collection": "0x3cc1c82fd1005b3475dc4d5cfc93270e2097718935e60bd9115a9184ba8f5d4",
+        "nftId": "1"
+      }
+    ]
+  }
+}

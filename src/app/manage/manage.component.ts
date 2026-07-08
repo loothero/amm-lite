@@ -160,7 +160,7 @@ export class ManageComponent implements OnInit {
 
       // Batch the independent pair reads over the RPC provider
       // (replaces the old Multicall contract aggregation).
-      const pair = new Contract(Pair721, pairAddress, provider);
+      const pair = new Contract({ abi: Pair721, address: pairAddress, providerOrAccount: provider });
       const [ids, rawNftAddress, rawQuote, rawOwner] = await Promise.all([
         pair.call('get_all_ids', []) as Promise<bigint[]>,
         pair.call('nft', []) as Promise<bigint>,
@@ -434,7 +434,7 @@ export class ManageComponent implements OnInit {
 
     // Call token_uri on the NFT contract (fall back to the legacy camelCase
     // tokenURI entrypoint some collections expose instead).
-    const nft = new Contract(ERC721, nftAddress, provider);
+    const nft = new Contract({ abi: ERC721, address: nftAddress, providerOrAccount: provider });
     let tokenURI: string;
     try {
       tokenURI = await nft.call('token_uri', [tokenId]) as string;
