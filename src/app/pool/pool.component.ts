@@ -87,7 +87,10 @@ export class PoolComponent implements OnInit {
 
   // Sell selection
   sellTokenIdsInput: string = '';
-  sellIds = computed<bigint[]>(() => this.parseIdList(this.sellTokenIdsInput));
+  // NOT a computed(): sellTokenIdsInput is a plain ngModel property, not a
+  // signal, so a computed would cache the initial empty parse forever and
+  // the Sell button could never enable. A method re-parses on each CD cycle.
+  sellIds = (): bigint[] => this.parseIdList(this.sellTokenIdsInput);
 
   // Pool address input form
   inputAddress: string = '';
@@ -167,11 +170,11 @@ export class PoolComponent implements OnInit {
    * wrapped in its own try/catch — a revert in one (e.g. get_all_ids on a
    * pool with a property checker) does not block any other read.
    */
-  async loadPool(): Promise<void> {
+  async loadPool(preserveTxBanners = false): Promise<void> {
     const addr = this.pairAddress();
     if (!addr) return;
 
-    this.resetPoolState();
+    this.resetPoolState(preserveTxBanners);
     this.isLoading.set(true);
 
     try {
@@ -219,10 +222,14 @@ export class PoolComponent implements OnInit {
     }
   }
 
-  private resetPoolState(): void {
+  private resetPoolState(preserveTxBanners = false): void {
     this.loadError.set('');
-    this.txError.set('');
-    this.txSuccessHash.set('');
+    if (!preserveTxBanners) {
+      // Cleared only on navigation — the post-tx refresh must not wipe the
+      // success/error banner the user is about to read.
+      this.txError.set('');
+      this.txSuccessHash.set('');
+    }
     this.buyError.set('');
     this.sellQuoteError.set('');
     this.inventoryError.set('');
@@ -483,7 +490,7 @@ export class PoolComponent implements OnInit {
       });
       if (result.status === TransactionStatus.SUCCESS) {
         this.txSuccessHash.set(result.hash ?? '');
-        await this.loadPool();
+        await this.loadPool(true);
       } else if (result.error) {
         this.txError.set(result.error.message);
       }
@@ -514,7 +521,7 @@ export class PoolComponent implements OnInit {
       });
       if (result.status === TransactionStatus.SUCCESS) {
         this.txSuccessHash.set(result.hash ?? '');
-        await this.loadPool();
+        await this.loadPool(true);
       } else if (result.error) {
         this.txError.set(result.error.message);
       }

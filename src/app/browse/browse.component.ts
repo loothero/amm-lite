@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { Contract } from 'starknet';
 import { WalletService } from '../services/wallet.service';
 import { NFTService, TransactionStatus } from '../services/nft.service';
-import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL, ZERO_ADDRESS, normalizeAddress } from '../services/address';
+import { CHAIN_ID, ChainIdType, CONTRACT_ADDRESSES, CHAIN_ID_BY_NUMBER, CHAIN_ID_BY_LABEL, normalizeAddress } from '../services/address';
 import { ListingBook } from '../../abi/ListingBook';
 import { Pair721 } from '../../abi/Pair721';
 import { ERC721 } from '../../abi/ERC721';
@@ -134,8 +134,11 @@ export class BrowseComponent implements OnInit {
         return;
       }
 
-      // token = 0 (any quote token), start = 0, end = 0 ("all")
-      const tokenAddress = ZERO_ADDRESS;
+      // ListingBook markets are keyed (collection, quote token). On the EVM
+      // original the ETH market was keyed by address(0); the Starknet port
+      // has no native ETH, so ETH pools are keyed by the configured ETH
+      // ERC20 — query that market. start = 0, end = 0 ("all").
+      const tokenAddress = this.walletService.ethTokenAddress();
       const start = 0n;
       const end = 0n;
 
@@ -150,9 +153,11 @@ export class BrowseComponent implements OnInit {
       // Batch the independent reads over the RPC provider.
       const collection = new Contract({ abi: ERC721, address: collectionAddress, providerOrAccount: provider });
       const listingBook = new Contract({ abi: ListingBook, address: listingBookAddress, providerOrAccount: provider });
+      // Metadata reads are best-effort: a collection without name/symbol
+      // entrypoints (or with reverting ones) must not break listing display.
       const [name, symbol, rawListings] = await Promise.all([
-        collection.call('name', []) as Promise<string>,
-        collection.call('symbol', []) as Promise<string>,
+        (collection.call('name', []) as Promise<string>).catch(() => 'Unknown Collection'),
+        (collection.call('symbol', []) as Promise<string>).catch(() => '???'),
         listingBook.call('get721_listings', [collectionAddress, tokenAddress, start, end]) as Promise<bigint[]>,
       ]);
 

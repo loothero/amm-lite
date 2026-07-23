@@ -148,40 +148,37 @@
                   class="w-full bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                   {{ isWithdrawing() ? 'Withdrawing...' : 'Withdraw all NFTs' }}
                 </button>
-
-                <!-- Withdrawal success message -->
-                @if (withdrawSuccess()) {
-                  <div class="mt-4 p-3 bg-green-900/50 text-green-200 rounded-lg border border-green-700">
-                    NFTs successfully withdrawn!
-                  </div>
-                }
-
-                <!-- Withdrawal error message -->
-                @if (withdrawError()) {
-                  <div class="mt-4 p-3 bg-red-900/50 text-red-200 rounded-lg border border-red-700">
-                    {{ withdrawError() }}
-                  </div>
-                }
               </div>
             }
 
-            <!-- Buy success message -->
-            @if (buySuccess()) {
-              <div class="mt-4 p-3 bg-green-900/50 text-green-200 rounded-lg border border-green-700">
-                NFT successfully purchased!
-              </div>
-            }
-
-            <!-- Buy error message -->
-            @if (buyError()) {
-              <div class="mt-4 p-3 bg-red-900/50 text-red-200 rounded-lg border border-red-700">
-                {{ buyError() }}
-              </div>
-            }
           </div>
         } @else if (!isLoading() && !errorMessage()) {
           <div class="w-full bg-zinc-800 rounded-lg p-4 mb-4">
             <p class="text-white text-center">No NFT IDs found in this pair.</p>
+          </div>
+        }
+
+        <!-- Withdrawal banners live OUTSIDE the inventory block: a full
+             withdraw empties nftIds, which would otherwise remove the
+             confirmation the user is about to read. -->
+        @if (withdrawSuccess()) {
+          <div class="w-full mt-4 p-3 bg-green-900/50 text-green-200 rounded-lg border border-green-700">
+            NFTs successfully withdrawn!
+          </div>
+        }
+        @if (withdrawError()) {
+          <div class="w-full mt-4 p-3 bg-red-900/50 text-red-200 rounded-lg border border-red-700">
+            {{ withdrawError() }}
+          </div>
+        }
+        @if (buySuccess()) {
+          <div class="w-full mt-4 p-3 bg-green-900/50 text-green-200 rounded-lg border border-green-700">
+            NFT successfully purchased!
+          </div>
+        }
+        @if (buyError()) {
+          <div class="w-full mt-4 p-3 bg-red-900/50 text-red-200 rounded-lg border border-red-700">
+            {{ buyError() }}
           </div>
         }
       }

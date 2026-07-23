@@ -142,12 +142,16 @@ export class ManageComponent implements OnInit {
    * Fetch NFT IDs for the pair address
    * @param pairAddress The address of the pair
    */
-  async fetchNFTIds(pairAddress: string): Promise<void> {
+  async fetchNFTIds(pairAddress: string, preserveTxBanners = false): Promise<void> {
     try {
       this.isLoading.set(true);
       this.errorMessage.set('');
-      this.withdrawSuccess.set(false);
-      this.withdrawError.set('');
+      if (!preserveTxBanners) {
+        // Cleared only on (re)navigation — the refresh right after a
+        // successful withdraw/buy must not wipe the banner being shown.
+        this.withdrawSuccess.set(false);
+        this.withdrawError.set('');
+      }
 
       const provider = this.walletService.getProvider();
       if (!provider) {
@@ -278,8 +282,8 @@ export class ManageComponent implements OnInit {
       // Set success state
       this.withdrawSuccess.set(true);
 
-      // Refresh the NFT IDs after withdrawal
-      await this.fetchNFTIds(this.address);
+      // Refresh the NFT IDs after withdrawal (keep the success banner)
+      await this.fetchNFTIds(this.address, true);
     } catch (error) {
       console.error('Error withdrawing NFTs:', error);
       this.withdrawError.set('Error withdrawing NFTs. Please try again.');
@@ -346,7 +350,7 @@ export class ManageComponent implements OnInit {
       // If the transaction was successful, refresh the NFT IDs
       if (result.status === TransactionStatus.SUCCESS && this.address) {
         this.buySuccess.set(true);
-        await this.fetchNFTIds(this.address);
+        await this.fetchNFTIds(this.address, true);
       }
     } catch (error) {
       console.error('Error buying NFT:', error);
