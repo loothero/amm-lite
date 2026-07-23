@@ -281,10 +281,14 @@ export class BrowseComponent implements OnInit {
         console.log('Transaction status:', status);
       });
 
-      // Call the NFT service to buy the NFT
+      // Buy exactly ONE NFT — listing.price is the single-item quote the
+      // card displays (get_buy_nft_quote(0, 1)), and the pair enforces it
+      // as max_expected_token_input. Passing every listed id here made the
+      // pair demand the multi-item price over a one-item cap and revert
+      // with 'Pair: demanded input too large' whenever the pool held >1.
       const result = await this.nftService.buyNFT({
         pairAddress: listing.pairAddress,
-        nftIds: listing.nftIds,
+        nftIds: listing.nftIds.slice(0, 1),
         price: listing.price
       });
 
