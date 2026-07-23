@@ -118,7 +118,18 @@ export type ContractAddressesRecord = Record<ChainIdType, ContractAddressesType>
 // (see deployments.ts) and stays a placeholder when the file is absent.
 export const CONTRACT_ADDRESSES: ContractAddressesRecord = {
   [CHAIN_ID.STARKNET]: { ETH_TOKEN: ETH_ERC20_ADDRESS },
-  [CHAIN_ID.SEPOLIA]: { ETH_TOKEN: ETH_ERC20_ADDRESS },
+  // lssvm2-starknet Sepolia deployment, 2026-07-23 (lssvm2-starknet
+  // deployments/sepolia.json — deployer 0x024038b9…68bb).
+  [CHAIN_ID.SEPOLIA]: {
+    ETH_TOKEN: ETH_ERC20_ADDRESS,
+    PAIR_FACTORY_V2_HOOKS: '0x0502bc15d8674089bb7a2efb19bfdc405003bbd0768d079bf372fdb9e7ea956',
+    VERY_FAST_ROUTER_V2: '0x04dfd7cf4fea92eed671da3b0b1ab0190c96b180137ff7396b8d01f8924bff35',
+    LISTING_BOOK: '0x047377b5705e08d5c9a0a626d943b530c06ad90fa88afe5774e43a9cdcea70a8',
+    LINEAR_CURVE_V2: '0x011984bda4c813337408017c8a19e5f0885207a2276a83617897053cd3be7b8a',
+    EXPONENTIAL_CURVE_V2: '0x007f3710c4342c8521d0b0d2ca19bcc792a5a263fdb8f983a3aa559fcfadc553',
+    XYK_CURVE_V2: '0x07f7cc396a30cb7c1e33d62d6ea7979db416503f14fe47995370ace3eccf8ca9',
+    GDA_CURVE_V2: '0x0199632449c4d5ec21f9c716789ce45b7759437384266a66af9aced3682faa96',
+  },
   [CHAIN_ID.DEVNET]: { ETH_TOKEN: ETH_ERC20_ADDRESS },
 };
 

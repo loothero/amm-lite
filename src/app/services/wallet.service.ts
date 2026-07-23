@@ -190,15 +190,19 @@ export class WalletService {
     this.wallet = wallet;
     this.attachWalletListeners();
 
-    this.walletAddress.set(this.safeNormalizeAddress(accounts[0]));
-    this.isConnected.set(true);
-
+    // Learn the chain BEFORE flipping isConnected: consumers fetch as soon
+    // as isConnected is true, and getProvider() needs the chain id. On a
+    // slow RPC the old order left a connected-but-providerless window that
+    // silently broke every data page navigated to during it.
     try {
       const chainId = await wallet.request({ type: 'wallet_requestChainId' });
       this.currentChainIdNum.set(normalizeChainId(chainId));
     } catch (e) {
       console.warn('Could not read chainId', e);
     }
+
+    this.walletAddress.set(this.safeNormalizeAddress(accounts[0]));
+    this.isConnected.set(true);
 
     this.rebuildAccount();
     await this.fetchBalance();
