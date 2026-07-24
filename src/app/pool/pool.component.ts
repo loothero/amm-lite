@@ -92,6 +92,20 @@ export class PoolComponent implements OnInit {
   // the Sell button could never enable. A method re-parses on each CD cycle.
   sellIds = (): bigint[] => this.parseIdList(this.sellTokenIdsInput);
 
+  /** Property checker address when the pool gates sells; '' = ungated. */
+  propertyChecker = signal<string>('');
+  /**
+   * Raw proof params for gated sells: the Serde of Array<Span<felt252>>
+   * (one proof span per sold id, in order), comma/whitespace-separated
+   * felts. Range-gated pools accept empty params.
+   */
+  propertyParamsInput: string = '';
+  propertyParams = (): string[] =>
+    this.propertyParamsInput
+      .split(/[,\s]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+
   // Pool address input form
   inputAddress: string = '';
 
@@ -189,14 +203,20 @@ export class PoolComponent implements OnInit {
 
       const pair = addr;
 
-      const [nft, owner, ptype] = await Promise.all([
+      const [nft, owner, ptype, checker] = await Promise.all([
         this.readPairView<bigint>(provider, pair, 'nft'),
         this.readPairView<bigint>(provider, pair, 'owner'),
         this.readPairView<CairoCustomEnum>(provider, pair, 'pool_type'),
+        this.readPairView<bigint>(provider, pair, 'property_checker'),
       ]);
       if (nft !== undefined) this.nftContractAddress.set(normalizeAddress(nft));
       if (owner !== undefined) this.ownerAddress.set(normalizeAddress(owner));
       if (ptype !== undefined) this.poolType.set(decodePoolType(ptype));
+      // Zero checker = ungated; anything else means sells must go through
+      // swap_nfts_for_token_with_property_check with proof params.
+      if (checker !== undefined && checker !== 0n) {
+        this.propertyChecker.set(normalizeAddress(checker));
+      }
 
       await Promise.allSettled([
         this.readInventory(provider, pair),
@@ -245,6 +265,7 @@ export class PoolComponent implements OnInit {
     this.tokenSymbol.set('');
     this.tokenDecimals.set(18);
     this.tokenBalanceInPool.set(null);
+    this.propertyChecker.set('');
     this.buyPrice.set(null);
     this.sellPrice.set(null);
     this.selectedBuyIds.set([]);
@@ -518,6 +539,9 @@ export class PoolComponent implements OnInit {
         nftIds: ids,
         minOutput: minOut,
         pairVersion: version,
+        // Gated pool: route through the property-checked entrypoint with
+        // the user-supplied proof params (may be empty for range checkers).
+        propertyCheckerParams: this.propertyChecker() ? this.propertyParams() : undefined,
       });
       if (result.status === TransactionStatus.SUCCESS) {
         this.txSuccessHash.set(result.hash ?? '');

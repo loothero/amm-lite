@@ -29,6 +29,14 @@ export interface SellNFTParams {
   nftIds: readonly bigint[];
   minOutput: bigint;
   pairVersion?: PairVersion;
+  /**
+   * When the pair has a property checker, sells must use the
+   * `swap_nfts_for_token_with_property_check` entrypoint. This carries the
+   * checker params: the Serde of `Array<Span<felt252>>` (one proof span per
+   * sold id, in order). `undefined` = ungated pool (plain entrypoint);
+   * an empty array is valid for checkers that ignore params (range).
+   */
+  propertyCheckerParams?: readonly string[];
 }
 
 export interface TransactionResult {
@@ -181,15 +189,23 @@ export class NFTService {
           calldata: [params.pairAddress, boolCalldata(true)],
         });
       }
+      // Gated pairs reject the plain entrypoint ('PairERC721: needs prop
+      // check') — route through the property-checked variant, whose last
+      // arg is a Span<felt252> (length-prefixed on the wire) carrying the
+      // checker params.
+      const props = params.propertyCheckerParams;
       calls.push({
         contractAddress: params.pairAddress,
-        entrypoint: 'swap_nfts_for_token',
+        entrypoint: props !== undefined
+          ? 'swap_nfts_for_token_with_property_check'
+          : 'swap_nfts_for_token',
         calldata: [
           ...u256ArrayCalldata(params.nftIds),
           ...u256Calldata(params.minOutput), // min_expected_token_output
           walletAddress, // token_recipient
           boolCalldata(false), // is_router
           '0', // router_caller
+          ...(props !== undefined ? [props.length.toString(), ...props] : []),
         ],
       });
 
