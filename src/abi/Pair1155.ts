@@ -942,6 +942,11 @@ export const Pair1155: Abi = [
         "name": "num_nfts",
         "type": "core::integer::u256",
         "kind": "data"
+      },
+      {
+        "name": "royalty_amount",
+        "type": "core::integer::u256",
+        "kind": "data"
       }
     ]
   },
@@ -957,6 +962,11 @@ export const Pair1155: Abi = [
       },
       {
         "name": "num_nfts",
+        "type": "core::integer::u256",
+        "kind": "data"
+      },
+      {
+        "name": "royalty_amount",
         "type": "core::integer::u256",
         "kind": "data"
       }

@@ -1048,6 +1048,11 @@ export const Pair721: Abi = [
         "name": "ids",
         "type": "core::array::Array::<core::integer::u256>",
         "kind": "data"
+      },
+      {
+        "name": "royalty_amount",
+        "type": "core::integer::u256",
+        "kind": "data"
       }
     ]
   },
@@ -1064,6 +1069,11 @@ export const Pair721: Abi = [
       {
         "name": "ids",
         "type": "core::array::Array::<core::integer::u256>",
+        "kind": "data"
+      },
+      {
+        "name": "royalty_amount",
+        "type": "core::integer::u256",
         "kind": "data"
       }
     ]
