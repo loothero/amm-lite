@@ -33,6 +33,24 @@
       }
 
       @if (pairAddress() && !isLoading() && !loadError()) {
+        <!-- GDA TRADE-pool hazard. Shown only when the pool really is a GDA
+             TRADE pool whose trade fee is below the measured safe threshold;
+             see services/gda-safety.ts. Nothing in this app can create one, but
+             a pool created out-of-band surfaces here and its owner's funds are
+             at risk. -->
+        @if (gdaWarning(); as gda) {
+          <div class="p-4 mb-4 bg-amber-950 text-amber-200 rounded-md border border-amber-800 text-sm">
+            <div class="font-semibold mb-1">⚠ This pool can be drained</div>
+            <p class="mb-2">{{ gda.message }}</p>
+            <p class="text-amber-300/80 text-xs">
+              GDA has no bid/ask spread, so a buy and an immediate sell back settle at
+              the same price and the pool pays out the alpha step. Raising the trade
+              fee to at least {{ formatFee(gda.recommendedMinFee) }} removes the
+              profit. One-sided GDA pools (type NFT or TOKEN) are unaffected.
+            </p>
+          </div>
+        }
+
         <!-- Header card -->
         <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-5 mb-4">
           <div class="flex items-start justify-between gap-4 flex-wrap">
