@@ -10,6 +10,14 @@ A lightweight Angular 19 frontend for sudoswap-style NFT AMM pools: create listi
 
 Deployed at https://amm-lite-production.up.railway.app (Sepolia addresses compiled in). Redeploy with `deploy/railway.sh`.
 
+## Licensing — read NOTICE.md
+
+AGPL-3.0 (`LICENSE`), but with a caveat that is not boilerplate: upstream
+`sudoswap/amm-lite` has **no licence at all**, so applying AGPL here covers this fork's own
+contributions and cannot grant rights over the inherited base. `NOTICE.md` explains what that
+means and what to do before distributing or hosting publicly. AGPL §13 (network use) applies to
+the hosted deployment.
+
 ## Commands
 
 ```bash
