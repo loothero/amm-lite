@@ -44,9 +44,18 @@
             <p class="mb-2">{{ gda.message }}</p>
             <p class="text-amber-300/80 text-xs">
               GDA has no bid/ask spread, so a buy and an immediate sell back settle at
-              the same price and the pool pays out the alpha step. Raising the trade
-              fee to at least {{ formatFee(gda.recommendedMinFee) }} removes the
-              profit. One-sided GDA pools (type NFT or TOKEN) are unaffected.
+              the same price and the pool pays out the alpha step.
+              @if (gda.defensible) {
+                Raising the trade fee to at least
+                {{ formatFee(gda.recommendedMinFee) }} removes the profit.
+              } @else {
+                Removing the profit would take a trade fee of
+                {{ formatFee(gda.recommendedMinFee) }}, above the
+                {{ formatFee(maxTradeFee) }} cap the pair enforces, so no fee
+                setting makes this pool safe. Withdraw and recreate it with an
+                alpha of 3 or less.
+              }
+              One-sided GDA pools (type NFT or TOKEN) are unaffected.
             </p>
           </div>
         }

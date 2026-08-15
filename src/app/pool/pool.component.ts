@@ -20,7 +20,7 @@ import { ERC721 } from '../../abi/ERC721';
 import { ERC20 } from '../../abi/ERC20';
 import { decodePoolType, parseNftQuote } from '../services/starknet.util';
 import { formatTokenAmount, shortAddress } from '../services/format.util';
-import { GdaAssessment, assessGdaTradePool, formatFeePercent } from '../services/gda-safety';
+import { GdaAssessment, MAX_TRADE_FEE, assessGdaTradePool, formatFeePercent } from '../services/gda-safety';
 
 @Component({
   selector: 'app-pool',
@@ -493,6 +493,9 @@ export class PoolComponent implements OnInit {
   }
 
   /** Renders a 1e18-base fee multiplier as a percentage, for the GDA banner. */
+  /** The pair's 50% trade-fee ceiling, for the undefendable-pool banner. */
+  readonly maxTradeFee = MAX_TRADE_FEE;
+
   formatFee(fee: bigint): string {
     return formatFeePercent(fee);
   }

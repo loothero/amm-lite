@@ -2,14 +2,17 @@ import {
   GDA_ALPHA_SCALE,
   assertGdaTradePoolSafe,
   assessGdaTradePool,
+  MAX_TRADE_FEE,
   formatFeePercent,
-  modelGdaTradeFee,
+  gdaTradePoolIsDefensible,
   recommendedGdaTradeFee,
   unpackGdaAlphaRaw,
 } from './gda-safety';
 
-const GDA = '0x0199632449c4d5ec21f9c716789ce45b7759437384266a66af9aced3682faa96';
-const LINEAR = '0x011984bda4c813337408017c8a19e5f0885207a2276a83617897053cd3be7b8a';
+const GDA =
+  '0x0199632449c4d5ec21f9c716789ce45b7759437384266a66af9aced3682faa96';
+const LINEAR =
+  '0x011984bda4c813337408017c8a19e5f0885207a2276a83617897053cd3be7b8a';
 
 const POOL_TYPE_TOKEN = 0;
 const POOL_TYPE_NFT = 1;
@@ -43,42 +46,57 @@ describe('gda-safety', () => {
     });
 
     it('reads alpha = 1 (the boundary validate_delta rejects)', () => {
-      expect(unpackGdaAlphaRaw(packDelta(GDA_ALPHA_SCALE))).toBe(GDA_ALPHA_SCALE);
+      expect(unpackGdaAlphaRaw(packDelta(GDA_ALPHA_SCALE))).toBe(
+        GDA_ALPHA_SCALE,
+      );
     });
   });
 
-  describe('modelGdaTradeFee matches the port measurements', () => {
-    // Expected values are (alpha-1)/(2*alpha) in 1e18 base, alongside the
-    // figure bisected in packages/testing/tests/
-    // test_gda_no_arb_characterisation.cairo. The model must stay within a few
-    // percent of the measurement, and the safety margin must cover the gap.
-    const CASES: Array<{ alphaRaw: bigint; measured: bigint }> = [
-      { alphaRaw: 1_001_000_000n, measured: 449_725_137_431_285n },
-      { alphaRaw: 1_010_000_000n, measured: 4_924_875_621_890_598n },
-      { alphaRaw: 1_020_000_000n, measured: 9_850_495_049_504_975n },
-      { alphaRaw: 1_050_000_000n, measured: 24_339_024_390_243_903n },
-      { alphaRaw: 1_100_000_000n, measured: 47_566_666_666_666_668n },
-      { alphaRaw: 1_500_000_000n, measured: 194_000_000_000_000_100n },
-      { alphaRaw: 2_000_000_000n, measured: 326_666_666_666_666_700n },
-    ];
+  /** The port's round-trip arbitrage tolerance, `MAX_ALLOWABLE_DIFF` (1e14 wei). */
+  const MAX_ALLOWABLE_DIFF = 100_000_000_000_000n;
 
-    for (const { alphaRaw, measured } of CASES) {
+  // Every point the port bisected, at 1-ether notional, one item. Extending
+  // this list past alpha 2.00 is what surfaced the formula error: the old
+  // `>= measured` assertion below was correct and passed, but the table it ran
+  // against stopped at 2.00, and the divergence only bites above ~2.08. Any
+  // future measurement belongs here.
+  const MEASURED: Array<{ alphaRaw: bigint; measured: bigint }> = [
+    { alphaRaw: 1_001_000_000n, measured: 449_725_137_431_285n },
+    { alphaRaw: 1_010_000_000n, measured: 4_924_875_621_890_598n },
+    { alphaRaw: 1_020_000_000n, measured: 9_850_495_049_504_975n },
+    { alphaRaw: 1_050_000_000n, measured: 24_339_024_390_243_903n },
+    { alphaRaw: 1_100_000_000n, measured: 47_566_666_666_666_668n },
+    { alphaRaw: 1_500_000_000n, measured: 199_940_000_000_000_001n },
+    { alphaRaw: 2_000_000_000n, measured: 333_266_666_666_666_667n },
+    { alphaRaw: 2_500_000_000n, measured: 428_500_000_000_000_000n },
+    { alphaRaw: 3_000_000_000n, measured: 499_925_000_000_000_001n },
+  ];
+
+  describe('recommendedGdaTradeFee vs the port measurements', () => {
+    for (const { alphaRaw, measured } of MEASURED) {
       const alpha = Number(alphaRaw) / 1e9;
 
-      it(`model is within 35% below the measurement at alpha ${alpha}`, () => {
-        const model = modelGdaTradeFee(alphaRaw);
-        // The model under-estimates as alpha grows; bound how far.
-        expect(Number(model) / Number(measured)).toBeGreaterThan(0.7);
-        expect(Number(model) / Number(measured)).toBeLessThan(1.2);
-      });
-
-      it(`recommended fee is >= the bisected measurement at alpha ${alpha}`, () => {
-        // This is the property that matters: the guard must never bless a fee
-        // the port proved insufficient. Jasmine's numeric matchers are typed
-        // number-only, so compare bigints as booleans.
+      it(`is >= the bisected measurement at alpha ${alpha}`, () => {
+        // The property that matters: never bless a fee the port proved
+        // insufficient. Jasmine's numeric matchers are typed number-only, so
+        // compare bigints as booleans.
         const rec = recommendedGdaTradeFee(alphaRaw);
         expect(rec >= measured)
           .withContext(`recommended ${rec} < measured ${measured}`)
+          .toBeTrue();
+      });
+
+      it(`overshoots by less than the 1e14 tolerance at alpha ${alpha}`, () => {
+        // The gap between the closed form and the bisected point is the port's
+        // MAX_ALLOWABLE_DIFF (1e14 wei) -- the bisection stops when profit
+        // drops under it, not under zero -- so it is an ABSOLUTE quantity, not
+        // a proportional one. It is ~11% of the threshold at alpha 1.001 and
+        // ~0.015% at alpha 3.00, which is why the bound is stated in wei.
+        // Keeping it tight is what would reject a wrong-but-conservative
+        // formula, the failure mode the x1.35 margin used to hide.
+        const rec = recommendedGdaTradeFee(alphaRaw);
+        expect(rec - measured < MAX_ALLOWABLE_DIFF)
+          .withContext(`overshoot ${rec - measured} >= ${MAX_ALLOWABLE_DIFF}`)
           .toBeTrue();
       });
     }
@@ -92,10 +110,81 @@ describe('gda-safety', () => {
 
     it('increases monotonically with alpha', () => {
       let prev = 0n;
-      for (const a of [1_001_000_000n, 1_010_000_000n, 1_100_000_000n, 2_000_000_000n]) {
+      for (const a of [
+        1_001_000_000n,
+        1_010_000_000n,
+        1_100_000_000n,
+        2_000_000_000n,
+      ]) {
         const cur = recommendedGdaTradeFee(a);
-        expect(cur > prev).withContext(`alpha ${a}: ${cur} !> ${prev}`).toBeTrue();
+        expect(cur > prev)
+          .withContext(`alpha ${a}: ${cur} !> ${prev}`)
+          .toBeTrue();
         prev = cur;
+      }
+    });
+
+    it('rounds up, never down', () => {
+      // alpha 1.10: 1e26/2.1e9 = 47619047619047619.047..., so the exact value
+      // is not representable and flooring would put the floor one wei low.
+      expect(recommendedGdaTradeFee(1_100_000_000n)).toBe(
+        47_619_047_619_047_620n,
+      );
+    });
+  });
+
+  describe('the alpha = 3 cliff', () => {
+    it('is exactly MAX_TRADE_FEE at alpha 3', () => {
+      expect(recommendedGdaTradeFee(3_000_000_000n)).toBe(MAX_TRADE_FEE);
+      expect(gdaTradePoolIsDefensible(3_000_000_000n)).toBeTrue();
+    });
+
+    it('exceeds MAX_TRADE_FEE one milli-alpha past it', () => {
+      expect(recommendedGdaTradeFee(3_001_000_000n) > MAX_TRADE_FEE).toBeTrue();
+      expect(gdaTradePoolIsDefensible(3_001_000_000n)).toBeFalse();
+    });
+
+    it('leaves most of the admissible alpha range undefendable', () => {
+      // validate_delta only requires alpha > 1; it admits alpha to ~1099.
+      for (const a of [3_500_000_000n, 10_000_000_000n, 1_000_000_000_000n]) {
+        expect(gdaTradePoolIsDefensible(a))
+          .withContext(`alpha ${a}`)
+          .toBeFalse();
+      }
+    });
+
+    it('flags an undefendable pool as unsafe at the maximum settable fee', () => {
+      const a = assessGdaTradePool(
+        params({ delta: packDelta(3_500_000_000n), fee: MAX_TRADE_FEE }),
+      );
+      expect(a.applies).toBeTrue();
+      expect(a.defensible).toBeFalse();
+      expect(a.unsafe).toBeTrue();
+      expect(a.message).toContain('NO trade fee');
+      expect(a.message).toContain('raising the fee will not stop it');
+    });
+
+    it("clears a defensible pool fee'd at exactly the requirement", () => {
+      const a = assessGdaTradePool(
+        params({
+          delta: packDelta(2_500_000_000n),
+          fee: recommendedGdaTradeFee(2_500_000_000n),
+        }),
+      );
+      expect(a.defensible).toBeTrue();
+      expect(a.unsafe).toBeFalse();
+    });
+
+    it('refuses to create an undefendable pool, and says why', () => {
+      try {
+        assertGdaTradePoolSafe(
+          params({ delta: packDelta(3_500_000_000n), fee: MAX_TRADE_FEE }),
+        );
+        fail('expected a throw');
+      } catch (e) {
+        const m = (e as Error).message;
+        expect(m).toContain('cannot be protected by any trade fee');
+        expect(m).toContain('alpha of 3 or less');
       }
     });
   });
@@ -122,36 +211,52 @@ describe('gda-safety', () => {
     });
 
     it('does not apply to one-sided GDA pools -- the hazard is TRADE only', () => {
-      expect(assessGdaTradePool(params({ poolType: POOL_TYPE_NFT })).applies).toBeFalse();
-      expect(assessGdaTradePool(params({ poolType: POOL_TYPE_TOKEN })).applies).toBeFalse();
+      expect(
+        assessGdaTradePool(params({ poolType: POOL_TYPE_NFT })).applies,
+      ).toBeFalse();
+      expect(
+        assessGdaTradePool(params({ poolType: POOL_TYPE_TOKEN })).applies,
+      ).toBeFalse();
     });
 
     it('does not apply to a non-GDA curve', () => {
-      expect(assessGdaTradePool(params({ curveAddress: LINEAR })).applies).toBeFalse();
+      expect(
+        assessGdaTradePool(params({ curveAddress: LINEAR })).applies,
+      ).toBeFalse();
     });
 
     it('matches curve addresses numerically despite zero padding', () => {
-      const padded = '0x00199632449c4d5ec21f9c716789ce45b7759437384266a66af9aced3682faa96';
-      const stripped = '0x199632449c4d5ec21f9c716789ce45b7759437384266a66af9aced3682faa96';
+      const padded =
+        '0x00199632449c4d5ec21f9c716789ce45b7759437384266a66af9aced3682faa96';
+      const stripped =
+        '0x199632449c4d5ec21f9c716789ce45b7759437384266a66af9aced3682faa96';
       expect(
-        assessGdaTradePool(params({ curveAddress: stripped, gdaCurveAddress: padded })).applies,
+        assessGdaTradePool(
+          params({ curveAddress: stripped, gdaCurveAddress: padded }),
+        ).applies,
       ).toBeTrue();
     });
 
     it('claims nothing when the GDA address is unknown', () => {
       // Deployments not loaded: better to miss a warning than to show one
       // against a Linear pool.
-      expect(assessGdaTradePool(params({ gdaCurveAddress: '' })).applies).toBeFalse();
+      expect(
+        assessGdaTradePool(params({ gdaCurveAddress: '' })).applies,
+      ).toBeFalse();
     });
 
     it('claims nothing on an unparseable address', () => {
-      expect(assessGdaTradePool(params({ curveAddress: 'not-an-address' })).applies).toBeFalse();
+      expect(
+        assessGdaTradePool(params({ curveAddress: 'not-an-address' })).applies,
+      ).toBeFalse();
     });
   });
 
   describe('assertGdaTradePoolSafe', () => {
-    it('throws for an under-fee\'d GDA TRADE pool', () => {
-      expect(() => assertGdaTradePoolSafe(params({ fee: 0n }))).toThrowError(/Refusing to create/);
+    it("throws for an under-fee'd GDA TRADE pool", () => {
+      expect(() => assertGdaTradePoolSafe(params({ fee: 0n }))).toThrowError(
+        /Refusing to create/,
+      );
     });
 
     it('names the required fee and the safe alternatives', () => {
@@ -165,7 +270,7 @@ describe('gda-safety', () => {
       }
     });
 
-    it('permits a sufficiently fee\'d GDA TRADE pool', () => {
+    it("permits a sufficiently fee'd GDA TRADE pool", () => {
       const fee = recommendedGdaTradeFee(1_100_000_000n);
       expect(() => assertGdaTradePoolSafe(params({ fee }))).not.toThrow();
     });
@@ -173,7 +278,12 @@ describe('gda-safety', () => {
     it('permits everything the app creates today (Linear, NFT, fee 0)', () => {
       expect(() =>
         assertGdaTradePoolSafe(
-          params({ curveAddress: LINEAR, poolType: POOL_TYPE_NFT, delta: 0n, fee: 0n }),
+          params({
+            curveAddress: LINEAR,
+            poolType: POOL_TYPE_NFT,
+            delta: 0n,
+            fee: 0n,
+          }),
         ),
       ).not.toThrow();
     });
