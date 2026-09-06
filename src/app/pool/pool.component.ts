@@ -72,6 +72,8 @@ export class PoolComponent implements OnInit {
   buyError = signal<string>('');
   sellPrice = signal<bigint | null>(null);
   sellQuoteError = signal<string>('');
+  private buyQuoteRequest = 0;
+  private sellQuoteRequest = 0;
 
   // UI state
   isLoading = signal<boolean>(false);
@@ -125,6 +127,7 @@ export class PoolComponent implements OnInit {
   // Tracks the (address, chainId) we last fetched for so we don't reload
   // redundantly each time an unrelated signal flips.
   private lastLoadKey = '';
+  private loadRequest = 0;
 
   constructor() {
     // Reactively (re)load whenever any of: pair address, connection state,
@@ -200,6 +203,10 @@ export class PoolComponent implements OnInit {
   async loadPool(preserveTxBanners = false): Promise<void> {
     const addr = this.pairAddress();
     if (!addr) return;
+    const request = ++this.loadRequest;
+    const chain = this.walletService.currentChainIdNum();
+    const isCurrent = () => request === this.loadRequest
+      && addr === this.pairAddress() && chain === this.walletService.currentChainIdNum();
 
     this.resetPoolState(preserveTxBanners);
     this.isLoading.set(true);
@@ -212,6 +219,7 @@ export class PoolComponent implements OnInit {
       }
 
       const version = await this.nftService.detectPairVersion(addr);
+      if (!isCurrent()) return;
       this.pairVersion.set(version);
 
       const pair = addr;
@@ -225,6 +233,7 @@ export class PoolComponent implements OnInit {
         this.readPairView<bigint>(provider, pair, 'delta'),
         this.readPairView<bigint>(provider, pair, 'fee'),
       ]);
+      if (!isCurrent()) return;
       if (nft !== undefined) this.nftContractAddress.set(normalizeAddress(nft));
       if (owner !== undefined) this.ownerAddress.set(normalizeAddress(owner));
       if (ptype !== undefined) this.poolType.set(decodePoolType(ptype));
@@ -239,12 +248,17 @@ export class PoolComponent implements OnInit {
       }
 
       await Promise.allSettled([
-        this.readInventory(provider, pair),
+        this.readInventory(provider, pair, isCurrent).then(() => {
+          // A delayed inventory read must not reuse its old provider to quote
+          // a newly selected pair/chain, or supersede a newer load's inventory.
+          if (isCurrent()) return this.refreshBuyQuote(provider);
+          return;
+        }),
         this.readQuoteToken(provider, pair),
-        this.refreshBuyQuote(provider),
         this.refreshSellQuote(provider),
         this.readEthBalance(provider, pair),
       ]);
+      if (!isCurrent()) return;
 
       const nftAddr = this.nftContractAddress();
       const tokenAddr = this.tokenAddress();
@@ -255,14 +269,19 @@ export class PoolComponent implements OnInit {
         tokenAddr ? this.readErc20Balance(provider, tokenAddr, pair) : Promise.resolve(),
       ]);
     } catch (e) {
-      console.error('Error loading pool', e);
-      this.loadError.set(`Could not load pool: ${(e as Error).message}`);
+      if (isCurrent()) {
+        console.error('Error loading pool', e);
+        this.loadError.set(`Could not load pool: ${(e as Error).message}`);
+      }
     } finally {
-      this.isLoading.set(false);
+      if (isCurrent()) this.isLoading.set(false);
     }
   }
 
   private resetPoolState(preserveTxBanners = false): void {
+    // Ignore outstanding quotes from the previous pool/selection.
+    this.buyQuoteRequest++;
+    this.sellQuoteRequest++;
     this.loadError.set('');
     if (!preserveTxBanners) {
       // Cleared only on navigation — the post-tx refresh must not wipe the
@@ -356,12 +375,16 @@ export class PoolComponent implements OnInit {
     return [a, b];
   }
 
-  private async readInventory(provider: RpcProvider, pair: string): Promise<void> {
+  private async readInventory(
+    provider: RpcProvider, pair: string, isCurrent: () => boolean,
+  ): Promise<void> {
     try {
       const contract = new Contract({ abi: Pair721, address: pair, providerOrAccount: provider });
       const inventory = await contract.call('get_all_ids', []) as readonly bigint[];
+      if (!isCurrent()) return;
       this.inventoryIds.set(inventory);
     } catch (e) {
+      if (!isCurrent()) return;
       console.warn('Inventory read reverted', e);
       this.inventoryError.set('Inventory IDs are not enumerable on this pool.');
     }
@@ -433,47 +456,65 @@ export class PoolComponent implements OnInit {
     }
   }
 
-  /**
-   * Quote count defaults to 1 when nothing is selected, so the page always
-   * shows at least the single-item floor / top-bid.
-   */
+  /** Quote the first submitted ERC721 ID, matching the pair's batch royalties. */
   async refreshBuyQuote(provider?: RpcProvider | null): Promise<void> {
+    const request = ++this.buyQuoteRequest;
+    this.buyPrice.set(null);
+    this.buyError.set('');
+    const ids = this.effectiveBuyIds();
+    // An unselected preview describes the first inventory item, not ID zero.
+    const assetId = ids[0] ?? this.inventoryIds()[0];
+    if (assetId === undefined) {
+      this.buyError.set('Select NFT IDs to get a buy quote.');
+      return;
+    }
     provider ??= this.walletService.getProvider();
     const pair = this.pairAddress();
+    const chain = this.walletService.currentChainIdNum();
     if (!provider || !pair) return;
     await this.fetchQuote(
-      provider, pair,
-      'get_buy_nft_quote',
-      Math.max(1, this.effectiveBuyIds().length),
+      provider, pair, 'get_buy_nft_quote', assetId, Math.max(1, ids.length),
       this.buyPrice, this.buyError, 'Buy quote unavailable',
+      () => request === this.buyQuoteRequest && pair === this.pairAddress()
+        && chain === this.walletService.currentChainIdNum(),
     );
   }
 
   async refreshSellQuote(provider?: RpcProvider | null): Promise<void> {
+    const request = ++this.sellQuoteRequest;
+    this.sellPrice.set(null);
+    this.sellQuoteError.set('');
+    const ids = this.sellIds();
+    if (ids.length === 0) {
+      this.sellQuoteError.set('Enter NFT IDs to get a sell quote.');
+      return;
+    }
     provider ??= this.walletService.getProvider();
     const pair = this.pairAddress();
+    const chain = this.walletService.currentChainIdNum();
     if (!provider || !pair) return;
     await this.fetchQuote(
-      provider, pair,
-      'get_sell_nft_quote',
-      Math.max(1, this.sellIds().length),
+      provider, pair, 'get_sell_nft_quote', ids[0], ids.length,
       this.sellPrice, this.sellQuoteError, 'Sell quote unavailable',
+      () => request === this.sellQuoteRequest && pair === this.pairAddress()
+        && chain === this.walletService.currentChainIdNum(),
     );
   }
 
   private async fetchQuote(
     provider: RpcProvider, pair: string,
     fn: 'get_buy_nft_quote' | 'get_sell_nft_quote',
+    assetId: bigint,
     count: number,
     priceSig: { set(v: bigint | null): void },
     errorSig: { set(v: string): void },
     errorPrefix: string,
+    isCurrent: () => boolean,
   ): Promise<void> {
     try {
       const contract = new Contract({ abi: Pair721, address: pair, providerOrAccount: provider });
-      // NFTQuote struct fields: (error, new_spot_price, new_delta, amount,
-      // protocol_fee, royalty_amount); error != 0 => quote unavailable.
-      const quote = parseNftQuote(await contract.call(fn, [0n, BigInt(count)]));
+      const quote = parseNftQuote(await contract.call(fn, [assetId, BigInt(count)]));
+      if (!isCurrent()) return;
       if (quote.error !== 0) {
         priceSig.set(null);
         errorSig.set(`${errorPrefix} (curve error ${quote.error}).`);
@@ -482,6 +523,7 @@ export class PoolComponent implements OnInit {
       priceSig.set(quote.amount);
       errorSig.set('');
     } catch (e) {
+      if (!isCurrent()) return;
       console.warn(`${fn} failed`, e);
       priceSig.set(null);
       errorSig.set(`${errorPrefix}.`);

@@ -37,7 +37,11 @@
                   <div class="flex justify-between items-center mb-2">
                     <p class="text-sm text-gray-400">Pair: {{ listing.pairAddress }}</p>
                     <div class="bg-zinc-700 px-2 py-1 rounded-full text-xs text-white">
-                      Price: {{ formatPrice(listing.price) }} {{ getTokenSymbol() }}
+                      @if (listing.price !== null) {
+                        Price: {{ formatPrice(listing.price) }} {{ getTokenSymbol() }}
+                      } @else {
+                        Quote unavailable
+                      }
                     </div>
                   </div>
                   <p class="text-sm text-white">NFT IDs: {{ listing.nftIds.length > 0 ? (listing.nftIds.length > 5 ? listing.nftIds.slice(0, 5).join(', ') + '...' : listing.nftIds.join(', ')) : 'None' }}</p>
@@ -46,7 +50,7 @@
                   <div class="mt-2">
                     <button
                       (click)="buyNFT(listing)"
-                      [disabled]="listing.nftIds.length === 0 || listing.isBuying"
+                      [disabled]="listing.nftIds.length === 0 || listing.price === null || listing.isBuying"
                       class="w-full bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                       @if (listing.isBuying) {
                         <span class="flex items-center justify-center">

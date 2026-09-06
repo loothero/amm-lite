@@ -120,7 +120,7 @@
                     <!-- Buy button for this specific NFT -->
                     <button
                       (click)="buyNFT(nftData.id)"
-                      [disabled]="isBuying()"
+                      [disabled]="isBuying() || nftData.price === null"
                       class="w-full mt-3 bg-[var(--dark-sudo-purple)] hover:bg-[var(--sudo-purple-o50)] text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                       @if (isBuying() && selectedNftId() === nftData.id) {
                         <span class="flex items-center justify-center">
@@ -130,8 +130,10 @@
                           </svg>
                           Buying...
                         </span>
+                      } @else if (nftData.price !== null) {
+                        Buy for {{ formatPrice(nftData.price) }} {{ getTokenSymbol() }}
                       } @else {
-                        Buy for {{ formatPrice(nftPrice()) }} {{ getTokenSymbol() }}
+                        Quote unavailable
                       }
                     </button>
                   </div>

@@ -27,7 +27,7 @@ interface NFTMetadata {
 // Define a type for the NFT data with price and metadata
 interface NFTData {
   id: bigint;
-  price: bigint;
+  price: bigint | null;
   isBuying?: boolean;
   metadata?: NFTMetadata;
   isLoadingMetadata?: boolean;
@@ -68,7 +68,6 @@ export class ManageComponent implements OnInit {
   isPoolOwner = signal<boolean>(false);
 
   // Buy state
-  nftPrice = signal<bigint>(0n);
   isBuying = signal<boolean>(false);
   buySuccess = signal<boolean>(false);
   buyError = signal<string>('');
@@ -165,24 +164,17 @@ export class ManageComponent implements OnInit {
       // Batch the independent pair reads over the RPC provider
       // (replaces the old Multicall contract aggregation).
       const pair = new Contract({ abi: Pair721, address: pairAddress, providerOrAccount: provider });
-      const [ids, rawNftAddress, rawQuote, rawOwner] = await Promise.all([
+      const [ids, rawNftAddress, rawOwner] = await Promise.all([
         pair.call('get_all_ids', []) as Promise<bigint[]>,
         pair.call('nft', []) as Promise<bigint>,
-        pair.call('get_buy_nft_quote', [0n, 1n]), // asset_id=0, num_nfts=1
         pair.call('owner', []) as Promise<bigint>,
       ]);
 
       const nftAddress = normalizeAddress(rawNftAddress);
       const ownerAddress = normalizeAddress(rawOwner);
 
-      // NFTQuote struct fields: (error, new_spot_price, new_delta, amount,
-      // protocol_fee, royalty_amount); error != 0 => quote unavailable.
-      const quote = parseNftQuote(rawQuote);
-      const inputAmount = quote.error === 0 ? quote.amount : 0n;
-
       console.log('NFT IDs for pair:', ids);
       console.log('NFT contract address:', nftAddress);
-      console.log('Buy NFT price quote:', inputAmount, quote.error !== 0 ? `(curve error ${quote.errorName})` : '');
       console.log('Pool owner address:', ownerAddress);
 
       // Check if the current wallet address is the pool owner
@@ -192,7 +184,6 @@ export class ManageComponent implements OnInit {
       // Update the signals
       this.nftIds.set(ids);
       this.nftContractAddress.set(nftAddress);
-      this.nftPrice.set(inputAmount);
       this.isPoolOwner.set(isOwner);
 
       // Set the selected NFT ID to the first ID if available
@@ -202,13 +193,16 @@ export class ManageComponent implements OnInit {
         this.selectedNftId.set(null);
       }
 
-      // Create NFT data list with initial data
-      const nftDataList = ids.map(id => ({
-        id,
-        price: inputAmount,
-        isLoadingMetadata: false,
-        metadata: undefined,
-        metadataError: undefined
+      // Royalties may differ per token, so each card needs its own quote.
+      const nftDataList: NFTData[] = await Promise.all(ids.map(async id => {
+        let price: bigint | null = null;
+        try {
+          const quote = parseNftQuote(await pair.call('get_buy_nft_quote', [id, 1n]));
+          if (quote.error === 0) price = quote.amount;
+        } catch (error) {
+          console.warn(`Buy quote unavailable for NFT ${id}:`, error);
+        }
+        return { id, price, isLoadingMetadata: false };
       }));
 
       this.nftDataList.set(nftDataList);
@@ -318,9 +312,15 @@ export class ManageComponent implements OnInit {
     }
 
     // Use the provided NFT ID or the selected one
-    const selectedId = nftId || this.selectedNftId();
+    const selectedId = nftId ?? this.selectedNftId();
     if (selectedId === null) {
       this.buyError.set('No NFT ID selected to buy');
+      return;
+    }
+
+    const price = this.nftDataList().find(nft => nft.id === selectedId)?.price;
+    if (price === undefined || price === null) {
+      this.buyError.set('No buy quote available for this NFT');
       return;
     }
 
@@ -341,7 +341,7 @@ export class ManageComponent implements OnInit {
       const result = await this.nftService.buyNFT({
         pairAddress: this.address,
         nftIds: [selectedId],
-        price: this.nftPrice()
+        price
       });
 
       // Unsubscribe from the status updates
