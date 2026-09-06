@@ -16,7 +16,7 @@ import { formatTokenAmount } from '../services/format.util';
 interface ListingData {
   pairAddress: string;
   nftIds: readonly bigint[];
-  price: bigint; // Price to buy an NFT (amount from get_buy_nft_quote)
+  price: bigint | null; // Single-item quote for nftIds[0]; null = unavailable.
   isBuying?: boolean; // Flag to track if a buy transaction is in progress
 }
 
@@ -208,10 +208,11 @@ export class BrowseComponent implements OnInit {
         pairAddresses.map(async (pairAddress): Promise<ListingData> => {
           try {
             const pair = new Contract({ abi: Pair721, address: pairAddress, providerOrAccount: provider });
-            const [nftIds, rawQuote] = await Promise.all([
-              pair.call('get_all_ids', []) as Promise<bigint[]>,
-              pair.call('get_buy_nft_quote', [0n, 1n]), // asset_id=0, num_nfts=1
-            ]);
+            const nftIds = await pair.call('get_all_ids', []) as bigint[];
+            if (nftIds.length === 0) {
+              return { pairAddress, nftIds, price: null, isBuying: false };
+            }
+            const rawQuote = await pair.call('get_buy_nft_quote', [nftIds[0], 1n]);
 
             // NFTQuote struct fields: (error, new_spot_price, new_delta,
             // amount, protocol_fee, royalty_amount); error != 0 => unavailable.
@@ -219,7 +220,7 @@ export class BrowseComponent implements OnInit {
             return {
               pairAddress,
               nftIds,
-              price: quote.error === 0 ? quote.amount : 0n,
+              price: quote.error === 0 ? quote.amount : null,
               isBuying: false
             };
           } catch (error) {
@@ -227,7 +228,7 @@ export class BrowseComponent implements OnInit {
             return {
               pairAddress,
               nftIds: [],
-              price: 0n,
+              price: null,
               isBuying: false
             };
           }
@@ -270,6 +271,8 @@ export class BrowseComponent implements OnInit {
         return;
       }
 
+      if (listing.price === null) return;
+
       // Set the listing as in buying state
       const updatedListings = this.listingsData().map(l =>
         l.pairAddress === listing.pairAddress ? { ...l, isBuying: true } : l
@@ -282,7 +285,7 @@ export class BrowseComponent implements OnInit {
       });
 
       // Buy exactly ONE NFT — listing.price is the single-item quote the
-      // card displays (get_buy_nft_quote(0, 1)), and the pair enforces it
+      // card displays for nftIds[0], and the pair enforces it
       // as max_expected_token_input. Passing every listed id here made the
       // pair demand the multi-item price over a one-item cap and revert
       // with 'Pair: demanded input too large' whenever the pool held >1.
