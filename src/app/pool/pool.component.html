@@ -33,30 +33,17 @@
       }
 
       @if (pairAddress() && !isLoading() && !loadError()) {
-        <!-- GDA TRADE-pool hazard. Shown only when the pool really is a GDA
-             TRADE pool whose trade fee is below the measured safe threshold;
-             see services/gda-safety.ts. Nothing in this app can create one, but
-             a pool created out-of-band surfaces here and its owner's funds are
-             at risk. -->
+        <!-- Legacy GDA TRADE pools remain withdrawable by their owners. -->
         @if (gdaWarning(); as gda) {
           <div class="p-4 mb-4 bg-amber-950 text-amber-200 rounded-md border border-amber-800 text-sm">
-            <div class="font-semibold mb-1">⚠ This pool can be drained</div>
+            <div class="font-semibold mb-1">⚠ {{ gda.applies ? 'GDA TRADE pool risk' : 'Pool curve risk is unverified' }}</div>
             <p class="mb-2">{{ gda.message }}</p>
-            <p class="text-amber-300/80 text-xs">
-              GDA has no bid/ask spread, so a buy and an immediate sell back settle at
-              the same price and the pool pays out the alpha step.
-              @if (gda.defensible) {
-                Raising the trade fee to at least
-                {{ formatFee(gda.recommendedMinFee) }} removes the profit.
-              } @else {
-                Removing the profit would take a trade fee of
-                {{ formatFee(gda.recommendedMinFee) }}, above the
-                {{ formatFee(maxTradeFee) }} cap the pair enforces, so no fee
-                setting makes this pool safe. Withdraw and recreate it with an
-                alpha of 3 or less.
-              }
-              One-sided GDA pools (type NFT or TOKEN) are unaffected.
-            </p>
+            @if (gda.applies) {
+              <p class="text-amber-300/80 text-xs">
+                Owners can withdraw their assets and recreate a one-sided GDA auction
+                or use another curve. One-sided GDA pools (NFT or TOKEN) remain supported.
+              </p>
+            }
           </div>
         }
 

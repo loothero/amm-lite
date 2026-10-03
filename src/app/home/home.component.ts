@@ -9,7 +9,7 @@ import { ERC20 } from '../../abi/ERC20';
 import { CHAIN_ID, CONTRACT_ADDRESSES, ChainIdType, CHAIN_ID_BY_NUMBER, ZERO_ADDRESS } from '../services/address';
 import { boolCalldata, u256ArrayCalldata, u256Calldata } from '../services/starknet.util';
 import { formatUnits } from '../services/format.util';
-import { assertGdaTradePoolSafe } from '../services/gda-safety';
+import { assertGdaTradePoolAllowed } from '../services/gda-safety';
 
 /** PoolType wire value (TOKEN=0, NFT=1, TRADE=2) used when creating listings. */
 const POOL_TYPE_NFT = '1';
@@ -392,20 +392,13 @@ export class HomeComponent {
     const initialNftIds = this.nftIds.split(',').map(id => BigInt(id.trim()));
     const spotPrice = BigInt(this.startingPrice) * BigInt(1e18); // u128, 18-decimals scalar
 
-    // Refuse to build a transaction that would create a drainable GDA TRADE
-    // pool. Today this form is hardcoded to LinearCurve / NFT / delta 0 / fee 0,
-    // so it never fires — it is wired in now so a curve or pool-type selector
-    // cannot be added later without the guard already being in force. Keep
-    // these arguments reading from the same values the calldata below uses.
+    // Validate the GDA one-sided policy before constructing the transaction.
+    // This creation flow currently offers only Linear NFT pools.
     const poolTypeWire = Number(POOL_TYPE_NFT);
-    const deltaWire = 0n;
-    const feeWire = 0n;
-    assertGdaTradePoolSafe({
+    assertGdaTradePoolAllowed({
       curveAddress: linearCurve,
       gdaCurveAddress: CONTRACT_ADDRESSES[this.currentChainId]?.['GDA_CURVE_V2'] ?? '',
       poolType: poolTypeWire,
-      delta: deltaWire,
-      fee: feeWire,
     });
 
     let createCall: Call;
