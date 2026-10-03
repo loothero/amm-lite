@@ -20,7 +20,7 @@ import { ERC721 } from '../../abi/ERC721';
 import { ERC20 } from '../../abi/ERC20';
 import { decodePoolType, parseNftQuote } from '../services/starknet.util';
 import { formatTokenAmount, shortAddress } from '../services/format.util';
-import { GdaAssessment, MAX_TRADE_FEE, assessGdaTradePool, formatFeePercent } from '../services/gda-safety';
+import { GdaAssessment, assessGdaTradePool } from '../services/gda-safety';
 
 @Component({
   selector: 'app-pool',
@@ -50,15 +50,8 @@ export class PoolComponent implements OnInit {
   ownerAddress = signal<string>('');
   poolType = signal<number | null>(null);
 
-  // Curve parameters — read so the GDA TRADE-pool hazard can be surfaced.
-  // A GDA pool of type TRADE has no bid/ask spread, so it is round-trip
-  // arbitrageable unless its trade fee clears the threshold measured in
-  // lssvm2-starknet (see services/gda-safety.ts). Nothing in this app can
-  // create such a pool, but one created out-of-band shows up in browse and
-  // here, and whoever funded it deserves to be told.
+  // Curve state also identifies legacy GDA TRADE pools for the risk banner.
   bondingCurve = signal<string>('');
-  poolDelta = signal<bigint | null>(null);
-  poolFee = signal<bigint | null>(null);
   gdaWarning = signal<GdaAssessment | null>(null);
 
   // Quote-token (the token the pool prices in: native ETH or an ERC20)
@@ -216,21 +209,17 @@ export class PoolComponent implements OnInit {
 
       const pair = addr;
 
-      const [nft, owner, ptype, checker, curve, delta, fee] = await Promise.all([
+      const [nft, owner, ptype, checker, curve] = await Promise.all([
         this.readPairView<bigint>(provider, pair, 'nft'),
         this.readPairView<bigint>(provider, pair, 'owner'),
         this.readPairView<CairoCustomEnum>(provider, pair, 'pool_type'),
         this.readPairView<bigint>(provider, pair, 'property_checker'),
         this.readPairView<bigint>(provider, pair, 'bonding_curve'),
-        this.readPairView<bigint>(provider, pair, 'delta'),
-        this.readPairView<bigint>(provider, pair, 'fee'),
       ]);
       if (nft !== undefined) this.nftContractAddress.set(normalizeAddress(nft));
       if (owner !== undefined) this.ownerAddress.set(normalizeAddress(owner));
       if (ptype !== undefined) this.poolType.set(decodePoolType(ptype));
       if (curve !== undefined) this.bondingCurve.set(normalizeAddress(curve));
-      if (delta !== undefined) this.poolDelta.set(BigInt(delta));
-      if (fee !== undefined) this.poolFee.set(BigInt(fee));
       this.assessGdaRisk();
       // Zero checker = ungated; anything else means sells must go through
       // swap_nfts_for_token_with_property_check with proof params.
@@ -282,8 +271,6 @@ export class PoolComponent implements OnInit {
     this.ownerAddress.set('');
     this.poolType.set(null);
     this.bondingCurve.set('');
-    this.poolDelta.set(null);
-    this.poolFee.set(null);
     this.gdaWarning.set(null);
     this.tokenAddress.set('');
     this.tokenSymbol.set('');
@@ -298,32 +285,19 @@ export class PoolComponent implements OnInit {
     this.sellTokenIdsInput = '';
   }
 
-  /**
-   * Evaluates the GDA TRADE-pool hazard from whatever curve state loaded.
-   *
-   * Silent unless every input is present: a pair whose `bonding_curve`/`delta`/
-   * `fee` reads reverted, or a chain whose GDA address is not configured, gets
-   * no warning rather than a guess. Showing this banner against a Linear pool
-   * would be worse than missing it.
-   */
+  /** Apply the one-sided support policy regardless of fee or delta. */
   private assessGdaRisk(): void {
-    const curve = this.bondingCurve();
-    const delta = this.poolDelta();
-    const fee = this.poolFee();
     const ptype = this.poolType();
-    if (!curve || delta === null || fee === null || ptype === null) {
+    if (ptype === null) {
       this.gdaWarning.set(null);
       return;
     }
-    const gda = CONTRACT_ADDRESSES[this.currentChainId]?.['GDA_CURVE_V2'] ?? '';
     const assessment = assessGdaTradePool({
-      curveAddress: curve,
-      gdaCurveAddress: gda,
+      curveAddress: this.bondingCurve() ?? '',
+      gdaCurveAddress: CONTRACT_ADDRESSES[this.currentChainId]?.['GDA_CURVE_V2'] ?? '',
       poolType: ptype,
-      delta,
-      fee,
     });
-    this.gdaWarning.set(assessment.applies && assessment.unsafe ? assessment : null);
+    this.gdaWarning.set(assessment.unsafe ? assessment : null);
   }
 
   private async readPairView<T>(
@@ -492,13 +466,6 @@ export class PoolComponent implements OnInit {
     return formatTokenAmount(amount, this.tokenDecimals());
   }
 
-  /** Renders a 1e18-base fee multiplier as a percentage, for the GDA banner. */
-  /** The pair's 50% trade-fee ceiling, for the undefendable-pool banner. */
-  readonly maxTradeFee = MAX_TRADE_FEE;
-
-  formatFee(fee: bigint): string {
-    return formatFeePercent(fee);
-  }
 
   poolTypeLabel(): string {
     switch (this.poolType()) {

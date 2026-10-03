@@ -82,9 +82,17 @@ node scripts/check-abi-drift.mjs --emit-amm-lite /path/to/amm-lite   # regenerat
 
 ### The GDA guard
 
-`src/app/services/gda-safety.ts` blocks creating — and warns on — GDA pools of type TRADE whose trade fee is too low. Such a pool has no bid/ask spread and can be drained by round-trip arbitrage; a fee of roughly `(α−1)/(2α)` neutralises it.
+`src/app/services/gda-safety.ts` prohibits all GDA TRADE creation and warns on
+legacy GDA TRADE pools, regardless of fee or curve parameters. GDA remains
+supported for one-sided NFT/TOKEN auctions. Same-block fee thresholds are not
+universal protection: the contract test
+`gda_trade_fee_does_not_protect_against_delayed_repurchase` pins a profitable
+11-second sell/buy reversal with a 5% LP fee and 0.5% protocol fee.
 
-The threshold is **not** guesswork: it comes from bisection measurements pinned in lssvm2-starknet's test suite (`gda_fee_offset_*`), and `gda-safety.spec.ts` asserts the recommendation is never below any measured point. The closed form under-estimates as α grows, which is the dangerous direction, so the implementation inflates it ×1.35. **If those measurements change, this file must change with them** — see `docs/gda-trade-pools.md` in the contracts repo.
+The new factory's owner must atomically classify each GDA address as permanently
+one-sided-only before enabling it. Older deployed factories and existing pools
+are not protected retroactively. Missing deployment metadata means TRADE risk
+is unverified and blocks TRADE creation; owners can still withdraw.
 
 ### Styling
 

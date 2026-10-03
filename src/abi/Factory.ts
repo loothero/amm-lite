@@ -419,6 +419,22 @@ export const FactoryABI: Abi = [
       },
       {
         "type": "function",
+        "name": "bonding_curve_one_sided",
+        "inputs": [
+          {
+            "name": "bonding_curve",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "core::bool"
+          }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
         "name": "call_allowed",
         "inputs": [
           {
@@ -678,6 +694,22 @@ export const FactoryABI: Abi = [
       {
         "type": "function",
         "name": "set_bonding_curve_allowed",
+        "inputs": [
+          {
+            "name": "bonding_curve",
+            "type": "core::starknet::contract_address::ContractAddress"
+          },
+          {
+            "name": "is_allowed",
+            "type": "core::bool"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "set_bonding_curve_allowed_one_sided",
         "inputs": [
           {
             "name": "bonding_curve",
@@ -1098,6 +1130,18 @@ export const FactoryABI: Abi = [
   },
   {
     "type": "event",
+    "name": "lssvm_interfaces::factory::events::BondingCurveOneSided",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "bonding_curve",
+        "type": "core::starknet::contract_address::ContractAddress",
+        "kind": "key"
+      }
+    ]
+  },
+  {
+    "type": "event",
     "name": "lssvm_interfaces::factory::events::CallTargetStatusUpdate",
     "kind": "struct",
     "members": [
@@ -1183,6 +1227,11 @@ export const FactoryABI: Abi = [
       {
         "name": "BondingCurveStatusUpdate",
         "type": "lssvm_interfaces::factory::events::BondingCurveStatusUpdate",
+        "kind": "nested"
+      },
+      {
+        "name": "BondingCurveOneSided",
+        "type": "lssvm_interfaces::factory::events::BondingCurveOneSided",
         "kind": "nested"
       },
       {
